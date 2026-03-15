@@ -68,9 +68,9 @@ class MathQuizGenerator:
 
             if valid and r_min <= current_value <= r_max:
                 result_text = f"{problem_str} ="
-                return result_text
+                return result_text, f"{problem_str} = {current_value}"
 
-        return "1 + 1 ="  # 保底方案
+        return "1 + 1 =", "1 + 1 = 2"  # 保底方案
 
     def create_docx(self):
         """生成 Word 文档"""
@@ -80,12 +80,14 @@ class MathQuizGenerator:
         columns = quiz_cfg.get("columns", 4)
         title = quiz_cfg.get("title", "小学生口算题")
         output_file = quiz_cfg.get("output_file", "小学口算题_v2.docx")
+        output_file_answer = quiz_cfg.get("output_file_answer", "小学口算题_答案.docx")
 
         self.logger.info(
-            f"开始生成 {pages} 页，每页 {count} 道题目，并导出到 {output_file}"
+            f"开始生成 {pages} 页，每页 {count} 道题目，并导出到 {output_file} 及 {output_file_answer}"
         )
 
         doc = Document()
+        doc_answer = Document()
         all_unique_problems = set()
 
         # 读取字体配置
@@ -98,27 +100,28 @@ class MathQuizGenerator:
         for page in range(pages):
             if page > 0:
                 doc.add_page_break()
+                doc_answer.add_page_break()
 
-            section = doc.sections[-1]  # 获取当前最后一节
+            # 设置页面布局和标题
+            for d in [doc, doc_answer]:
+                section = d.sections[-1]
+                if orientation == "landscape":
+                    new_width, new_height = section.page_height, section.page_width
+                    section.orientation = WD_ORIENT.LANDSCAPE
+                    section.page_width = new_width
+                    section.page_height = new_height
 
-            # 设置页面方向
-            if orientation == "landscape":
-                new_width, new_height = section.page_height, section.page_width
-                section.orientation = WD_ORIENT.LANDSCAPE
-                section.page_width = new_width
-                section.page_height = new_height
+                section.top_margin = Cm(margin_cm)
+                section.bottom_margin = Cm(margin_cm)
+                section.left_margin = Cm(margin_cm)
+                section.right_margin = Cm(margin_cm)
 
-            # 设置页边距
-            section.top_margin = Cm(margin_cm)
-            section.bottom_margin = Cm(margin_cm)
-            section.left_margin = Cm(margin_cm)
-            section.right_margin = Cm(margin_cm)
+                # 添加标题
+                current_title = title if d == doc else f"{title} (答案)"
+                heading = d.add_heading(current_title, 0)
+                heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
-            # 添加标题
-            heading = doc.add_heading(title, 0)
-            heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
-
-            # 添加 姓名、日期、时间 这一行
+            # 题目卷专有信息行
             info_para = doc.add_paragraph()
             info_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
             info_run = info_para.add_run(
@@ -126,7 +129,6 @@ class MathQuizGenerator:
             )
             info_run.font.size = Pt(info_font_size)
             info_run.font.name = font_name
-            # 设置中文字体，确保 rFonts 存在
             rPr = info_run._element.get_or_add_rPr()
             rFonts = rPr.get_or_add_rFonts()
             rFonts.set(qn("w:eastAsia"), font_name)
@@ -134,28 +136,31 @@ class MathQuizGenerator:
             rows = (count + columns - 1) // columns
             table = doc.add_table(rows=rows, cols=columns)
             table.autofit = True
+            table_answer = doc_answer.add_table(rows=rows, cols=columns)
+            table_answer.autofit = True
 
             current_page_problems = []
-            max_retries_per_prob = 1000  # 增加单次尝试次数
+            current_page_answers = []
+            max_retries_per_prob = 1000
 
             for _ in range(count):
                 found_new = False
-                # 优先尝试在全局范围内去重
                 for _retry in range(max_retries_per_prob):
-                    prob = self.generate_problem()
+                    prob, ans = self.generate_problem()
                     if prob not in all_unique_problems:
                         all_unique_problems.add(prob)
                         current_page_problems.append(prob)
+                        current_page_answers.append(ans)
                         found_new = True
                         break
 
-                # 如果全局重复但在本页没出现过，允许出现在不同页（解决组合不足的问题）
                 if not found_new:
                     for _retry in range(max_retries_per_prob):
-                        prob = self.generate_problem()
+                        prob, ans = self.generate_problem()
                         if prob not in set(current_page_problems):
                             current_page_problems.append(prob)
-                            all_unique_problems.add(prob)  # 再次标注
+                            current_page_answers.append(ans)
+                            all_unique_problems.add(prob)
                             found_new = True
                             self.logger.warning(
                                 f"警告：第 {page + 1} 页尝试生成全局唯一题目失败，已改用页内唯一模式。"
@@ -166,25 +171,36 @@ class MathQuizGenerator:
                     self.logger.error(
                         f"严重警告：第 {page + 1} 页范围极窄，已无法维持页内题目唯一性。"
                     )
-                    current_page_problems.append(self.generate_problem())
+                    prob, ans = self.generate_problem()
+                    current_page_problems.append(prob)
+                    current_page_answers.append(ans)
 
             for i in range(len(current_page_problems)):
                 row = i // columns
                 col = i % columns
-                cell = table.cell(row, col)
-                paragraph = cell.paragraphs[0]
-                run = paragraph.add_run(current_page_problems[i])
 
-                # 设置字体和大小
+                # 填充题目
+                cell = table.cell(row, col)
+                run = cell.paragraphs[0].add_run(current_page_problems[i])
                 run.font.size = Pt(font_size)
                 run.font.name = font_name
-                # 兼容中文字体设置
                 rPr = run._element.get_or_add_rPr()
                 rFonts = rPr.get_or_add_rFonts()
                 rFonts.set(qn("w:eastAsia"), font_name)
 
+                # 填充答案
+                cell_a = table_answer.cell(row, col)
+                run_a = cell_a.paragraphs[0].add_run(current_page_answers[i])
+                run_a.font.size = Pt(font_size)
+                run_a.font.name = font_name
+                rPr_a = run_a._element.get_or_add_rPr()
+                rFonts_a = rPr_a.get_or_add_rFonts()
+                rFonts_a.set(qn("w:eastAsia"), font_name)
+
         doc.save(output_file)
+        doc_answer.save(output_file_answer)
         self.logger.info(f"成功生成文档: {os.path.abspath(output_file)}")
+        self.logger.info(f"成功生成答案: {os.path.abspath(output_file_answer)}")
 
 
 if __name__ == "__main__":
