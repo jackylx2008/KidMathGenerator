@@ -8,6 +8,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.section import WD_ORIENT
 from docx.oxml.ns import qn
 from logging_config import setup_logger
+import convert_to_pdf
 
 
 class MathQuizGenerator:
@@ -32,9 +33,18 @@ class MathQuizGenerator:
         t1_max = setting.get("term1_max", 100)
         t2_min = setting.get("term2_min", 1)
         t2_max = setting.get("term2_max", 100)
+        # 支持 term3 配置
+        t3_min = setting.get("term3_min", 1)
+        t3_max = setting.get("term3_max", 100)
+
+        # 兼容旧版的 operators，支持新版的 operators1, operators2
         ops_pool = setting.get("operators", ["+"])
+        ops_pool1 = setting.get("operators1", ops_pool)
+        ops_pool2 = setting.get("operators2", ops_pool)
+
         r_min = setting.get("result_min", 0)
         r_max = setting.get("result_max", 1000)
+        mid_min = setting.get("mid_result_min", 0)  # 中间结果限制
 
         # 尝试生成符合结果范围的题目
         for _ in range(100):  # 最多重试100次
@@ -44,13 +54,18 @@ class MathQuizGenerator:
 
             valid = True
             for i in range(steps):
-                op = random.choice(ops_pool)
-                b = random.randint(t2_min, t2_max)
+                # 根据步骤选择对应的符号池
+                if i == 0:
+                    op = random.choice(ops_pool1)
+                    b = random.randint(t2_min, t2_max)
+                else:
+                    op = random.choice(ops_pool2)
+                    b = random.randint(t3_min, t3_max)
 
                 if op == "+":
                     current_value += b
                 elif op == "-":
-                    if current_value < b:  # 简单防止负数
+                    if current_value < b:
                         valid = False
                         break
                     current_value -= b
@@ -61,6 +76,12 @@ class MathQuizGenerator:
                         valid = False
                         break
                     current_value //= b
+
+                # 检查中间步骤结果是否符合范围（主要防止负数）
+                if i < steps - 1:
+                    if current_value < mid_min:
+                        valid = False
+                        break
 
                 # 转换符号显示
                 display_op = op.replace("*", "×").replace("/", "÷")
@@ -206,3 +227,4 @@ class MathQuizGenerator:
 if __name__ == "__main__":
     generator = MathQuizGenerator()
     generator.create_docx()
+    convert_to_pdf.convert_docx_to_pdf()
