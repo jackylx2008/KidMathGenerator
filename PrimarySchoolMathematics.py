@@ -53,11 +53,25 @@ class MathQuizGenerator:
             current_value = a
 
             valid = True
+            step1_str = ""  # 初始化以修复 linter 错误
             for i in range(steps):
                 # 根据步骤选择对应的符号池
                 if i == 0:
                     op = random.choice(ops_pool1)
                     b = random.randint(t2_min, t2_max)
+                    # 记录第一步的运算过程和结果，用于答案显示
+                    step1_val = current_value
+                    step1_res = 0  # 初始化
+                    if op == "+":
+                        step1_res = current_value + b
+                    elif op == "-":
+                        step1_res = current_value - b
+                    elif op == "*":
+                        step1_res = current_value * b
+                    elif op == "/":
+                        step1_res = current_value // b
+                    display_op_step1 = op.replace("*", "×").replace("/", "÷")
+                    step1_str = f"({step1_val}{display_op_step1}{b}={step1_res})"
                 else:
                     op = random.choice(ops_pool2)
                     b = random.randint(t3_min, t3_max)
@@ -89,7 +103,12 @@ class MathQuizGenerator:
 
             if valid and r_min <= current_value <= r_max:
                 result_text = f"{problem_str} ="
-                return result_text, f"{problem_str} = {current_value}"
+                # 对于2步及以上运算，答案中包含第一步结果
+                if steps >= 2:
+                    ans_text = f"{problem_str} = {current_value} {step1_str}"
+                else:
+                    ans_text = f"{problem_str} = {current_value}"
+                return result_text, ans_text
 
         return "1 + 1 =", "1 + 1 = 2"  # 保底方案
 
