@@ -6,7 +6,10 @@ from docx import Document
 from docx.shared import Pt, Cm
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.section import WD_ORIENT
-from docx.enum.table import WD_TABLE_ALIGNMENT, WD_CELL_VERTICAL_ALIGNMENT
+from docx.enum.table import (
+    WD_TABLE_ALIGNMENT,
+    WD_CELL_VERTICAL_ALIGNMENT,
+)
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 from logging_config import setup_logger
@@ -16,6 +19,8 @@ import convert_to_pdf
 class MathQuizGenerator:
     A4_WIDTH_CM = 21.0
     A4_HEIGHT_CM = 29.7
+    PT_TO_TWIPS = 20
+    CM_TO_PT = 28.3465
 
     def __init__(self, config_path="config.yaml"):
         # 加载配置
@@ -74,9 +79,42 @@ class MathQuizGenerator:
                 cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
                 if is_answer:
                     self.set_cell_margins(cell, top=20, start=40, bottom=20, end=40)
+                    tc_pr = cell._tc.get_or_add_tcPr()
+                    if tc_pr.first_child_found_in("w:noWrap") is None:
+                        tc_pr.append(OxmlElement("w:noWrap"))
                 else:
                     self.set_cell_margins(cell)
                 self.normalize_paragraph(cell.paragraphs[0])
+
+    def calculate_answer_font_size(
+        self, section, rows, columns, answers, preferred_font_size, margin_cm
+    ):
+        """根据当前页行列数和最长答案长度估算答案字号。"""
+        if not answers:
+            return preferred_font_size
+
+        page_width_pt = section.page_width / self.PT_TO_TWIPS
+        page_height_pt = section.page_height / self.PT_TO_TWIPS
+        margin_pt = margin_cm * self.CM_TO_PT
+
+        available_width_pt = max(page_width_pt - 2 * margin_pt, 100)
+        available_height_pt = max(page_height_pt - 2 * margin_pt, 100)
+
+        # 预留标题、段前后距和表格边界的高度，避免最后一两行被挤出页面。
+        reserved_height_pt = 70
+        usable_height_pt = max(available_height_pt - reserved_height_pt, 60)
+
+        column_width_pt = available_width_pt / max(columns, 1)
+        row_height_pt = usable_height_pt / max(rows, 1)
+
+        max_answer_length = max(len(answer) for answer in answers)
+        # 中文和数学符号混排时取偏保守的字符宽度系数。
+        width_based_font = column_width_pt / max(max_answer_length * 0.9, 1)
+        # 行高还要扣掉单元格上下边距和少量缓冲。
+        height_based_font = max((row_height_pt - 6) / 1.35, 1)
+
+        dynamic_font_size = min(preferred_font_size, width_based_font, height_based_font)
+        return max(8, int(dynamic_font_size))
 
     def apply_page_layout(self, section, orientation, margin_cm):
         """显式设置 A4 页面尺寸，避免仅设置方向但纸张尺寸未同步。"""
@@ -280,6 +318,18 @@ class MathQuizGenerator:
                     current_page_problems.append(prob)
                     current_page_answers.append(ans)
 
+            dynamic_answer_font_size = self.calculate_answer_font_size(
+                doc_answer.sections[-1],
+                rows,
+                columns,
+                current_page_answers,
+                answer_font_size,
+                margin_cm,
+            )
+            self.logger.info(
+                f"第 {page + 1} 页答案字号自动调整为 {dynamic_answer_font_size} 磅。"
+            )
+
             for i in range(len(current_page_problems)):
                 row = i // columns
                 col = i % columns
@@ -298,7 +348,7 @@ class MathQuizGenerator:
                 cell_a = table_answer.cell(row, col)
                 self.normalize_paragraph(cell_a.paragraphs[0])
                 run_a = cell_a.paragraphs[0].add_run(current_page_answers[i])
-                run_a.font.size = Pt(answer_font_size)
+                run_a.font.size = Pt(dynamic_answer_font_size)
                 run_a.font.name = font_name
                 rPr_a = run_a._element.get_or_add_rPr()
                 rFonts_a = rPr_a.get_or_add_rFonts()
