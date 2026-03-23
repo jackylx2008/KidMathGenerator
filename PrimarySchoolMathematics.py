@@ -6,12 +6,17 @@ from docx import Document
 from docx.shared import Pt, Cm
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.section import WD_ORIENT
+from docx.enum.table import WD_TABLE_ALIGNMENT, WD_CELL_VERTICAL_ALIGNMENT
 from docx.oxml.ns import qn
+from docx.oxml import OxmlElement
 from logging_config import setup_logger
 import convert_to_pdf
 
 
 class MathQuizGenerator:
+    A4_WIDTH_CM = 21.0
+    A4_HEIGHT_CM = 29.7
+
     def __init__(self, config_path="config.yaml"):
         # 加载配置
         with open(config_path, "r", encoding="utf-8") as f:
@@ -22,6 +27,72 @@ class MathQuizGenerator:
         log_level = getattr(logging, log_level_str, logging.INFO)
         self.logger = setup_logger(log_level=log_level)
         self.logger.info("初始化小学口算题生成器...")
+
+    @staticmethod
+    def set_cell_margins(cell, top=40, start=60, bottom=40, end=60):
+        """设置单元格内边距，单位为 dxa。"""
+        tc = cell._tc
+        tc_pr = tc.get_or_add_tcPr()
+        tc_mar = tc_pr.first_child_found_in("w:tcMar")
+        if tc_mar is None:
+            tc_mar = OxmlElement("w:tcMar")
+            tc_pr.append(tc_mar)
+
+        for margin_name, margin_value in {
+            "top": top,
+            "start": start,
+            "bottom": bottom,
+            "end": end,
+        }.items():
+            node = tc_mar.find(qn(f"w:{margin_name}"))
+            if node is None:
+                node = OxmlElement(f"w:{margin_name}")
+                tc_mar.append(node)
+            node.set(qn("w:w"), str(margin_value))
+            node.set(qn("w:type"), "dxa")
+
+    @staticmethod
+    def normalize_paragraph(paragraph, align=WD_ALIGN_PARAGRAPH.LEFT):
+        """压缩段落间距，避免单元格内容把行高撑大。"""
+        paragraph.alignment = align
+        fmt = paragraph.paragraph_format
+        fmt.space_before = Pt(0)
+        fmt.space_after = Pt(0)
+        fmt.line_spacing = 1
+
+    def setup_table_layout(self, table, section, columns, is_answer=False):
+        """固定表格宽度和单元格样式，避免长答案触发不可控换行。"""
+        available_width = section.page_width - section.left_margin - section.right_margin
+        column_width = available_width / columns
+
+        table.alignment = WD_TABLE_ALIGNMENT.CENTER
+        table.autofit = False
+
+        for column in table.columns:
+            for cell in column.cells:
+                cell.width = column_width
+                cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+                if is_answer:
+                    self.set_cell_margins(cell, top=20, start=40, bottom=20, end=40)
+                else:
+                    self.set_cell_margins(cell)
+                self.normalize_paragraph(cell.paragraphs[0])
+
+    def apply_page_layout(self, section, orientation, margin_cm):
+        """显式设置 A4 页面尺寸，避免仅设置方向但纸张尺寸未同步。"""
+        if orientation == "landscape":
+            section.orientation = WD_ORIENT.LANDSCAPE
+            section.page_width = Cm(self.A4_HEIGHT_CM)
+            section.page_height = Cm(self.A4_WIDTH_CM)
+        else:
+            section.orientation = WD_ORIENT.PORTRAIT
+            section.page_width = Cm(self.A4_WIDTH_CM)
+            section.page_height = Cm(self.A4_HEIGHT_CM)
+
+        section.top_margin = Cm(margin_cm)
+        section.bottom_margin = Cm(margin_cm)
+        section.left_margin = Cm(margin_cm)
+        section.right_margin = Cm(margin_cm)
 
     def generate_problem(self):
         """根据配置随机生成一道题目"""
@@ -104,10 +175,11 @@ class MathQuizGenerator:
             if valid and r_min <= current_value <= r_max:
                 result_text = f"{problem_str} ="
                 # 对于2步及以上运算，答案中包含第一步结果
+                compact_problem_str = problem_str.replace(" ", "")
                 if steps >= 2:
-                    ans_text = f"{problem_str} = {current_value} {step1_str}"
+                    ans_text = f"{compact_problem_str}={current_value} {step1_str}"
                 else:
-                    ans_text = f"{problem_str} = {current_value}"
+                    ans_text = f"{compact_problem_str}={current_value}"
                 return result_text, ans_text
 
         return "1 + 1 =", "1 + 1 = 2"  # 保底方案
@@ -130,9 +202,9 @@ class MathQuizGenerator:
         doc_answer = Document()
         all_unique_problems = set()
 
-        # 读取字体配置
         font_name = quiz_cfg.get("font_name", "黑体")
         font_size = quiz_cfg.get("font_size", 22)
+        answer_font_size = quiz_cfg.get("answer_font_size", max(12, font_size - 4))
         info_font_size = quiz_cfg.get("info_font_size", 16)
         margin_cm = quiz_cfg.get("margin_cm", 1.0)
         orientation = quiz_cfg.get("orientation", "landscape")
@@ -145,16 +217,7 @@ class MathQuizGenerator:
             # 设置页面布局和标题
             for d in [doc, doc_answer]:
                 section = d.sections[-1]
-                if orientation == "landscape":
-                    new_width, new_height = section.page_height, section.page_width
-                    section.orientation = WD_ORIENT.LANDSCAPE
-                    section.page_width = new_width
-                    section.page_height = new_height
-
-                section.top_margin = Cm(margin_cm)
-                section.bottom_margin = Cm(margin_cm)
-                section.left_margin = Cm(margin_cm)
-                section.right_margin = Cm(margin_cm)
+                self.apply_page_layout(section, orientation, margin_cm)
 
                 # 添加标题
                 current_title = title if d == doc else f"{title} (答案)"
@@ -175,9 +238,11 @@ class MathQuizGenerator:
 
             rows = (count + columns - 1) // columns
             table = doc.add_table(rows=rows, cols=columns)
-            table.autofit = True
             table_answer = doc_answer.add_table(rows=rows, cols=columns)
-            table_answer.autofit = True
+            self.setup_table_layout(table, doc.sections[-1], columns, is_answer=False)
+            self.setup_table_layout(
+                table_answer, doc_answer.sections[-1], columns, is_answer=True
+            )
 
             current_page_problems = []
             current_page_answers = []
@@ -221,6 +286,7 @@ class MathQuizGenerator:
 
                 # 填充题目
                 cell = table.cell(row, col)
+                self.normalize_paragraph(cell.paragraphs[0])
                 run = cell.paragraphs[0].add_run(current_page_problems[i])
                 run.font.size = Pt(font_size)
                 run.font.name = font_name
@@ -230,8 +296,9 @@ class MathQuizGenerator:
 
                 # 填充答案
                 cell_a = table_answer.cell(row, col)
+                self.normalize_paragraph(cell_a.paragraphs[0])
                 run_a = cell_a.paragraphs[0].add_run(current_page_answers[i])
-                run_a.font.size = Pt(font_size)
+                run_a.font.size = Pt(answer_font_size)
                 run_a.font.name = font_name
                 rPr_a = run_a._element.get_or_add_rPr()
                 rFonts_a = rPr_a.get_or_add_rFonts()
