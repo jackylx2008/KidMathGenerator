@@ -67,7 +67,9 @@ class MathQuizGenerator:
 
     def setup_table_layout(self, table, section, columns, is_answer=False):
         """固定表格宽度和单元格样式，避免长答案触发不可控换行。"""
-        available_width = section.page_width - section.left_margin - section.right_margin
+        available_width = (
+            section.page_width - section.left_margin - section.right_margin
+        )
         column_width = available_width / columns
 
         table.alignment = WD_TABLE_ALIGNMENT.CENTER
@@ -113,7 +115,9 @@ class MathQuizGenerator:
         # 行高还要扣掉单元格上下边距和少量缓冲。
         height_based_font = max((row_height_pt - 6) / 1.35, 1)
 
-        dynamic_font_size = min(preferred_font_size, width_based_font, height_based_font)
+        dynamic_font_size = min(
+            preferred_font_size, width_based_font, height_based_font
+        )
         return max(8, int(dynamic_font_size))
 
     def apply_page_layout(self, section, orientation, margin_cm):
@@ -154,6 +158,8 @@ class MathQuizGenerator:
         r_min = setting.get("result_min", 0)
         r_max = setting.get("result_max", 1000)
         mid_min = setting.get("mid_result_min", 0)  # 中间结果限制
+        first_result_min = setting.get("first_result_min", mid_min)
+        first_result_max = setting.get("first_result_max", r_max)
 
         # 尝试生成符合结果范围的题目
         for _ in range(100):  # 最多重试100次
@@ -163,24 +169,13 @@ class MathQuizGenerator:
 
             valid = True
             step1_str = ""  # 初始化以修复 linter 错误
+            step1_val = 0  # 初始化以修复 step1_val 可能未绑定的错误
             for i in range(steps):
                 # 根据步骤选择对应的符号池
                 if i == 0:
                     op = random.choice(ops_pool1)
                     b = random.randint(t2_min, t2_max)
-                    # 记录第一步的运算过程和结果，用于答案显示
                     step1_val = current_value
-                    step1_res = 0  # 初始化
-                    if op == "+":
-                        step1_res = current_value + b
-                    elif op == "-":
-                        step1_res = current_value - b
-                    elif op == "*":
-                        step1_res = current_value * b
-                    elif op == "/":
-                        step1_res = current_value // b
-                    display_op_step1 = op.replace("*", "×").replace("/", "÷")
-                    step1_str = f"({step1_val}{display_op_step1}{b}={step1_res})"
                 else:
                     op = random.choice(ops_pool2)
                     b = random.randint(t3_min, t3_max)
@@ -199,6 +194,13 @@ class MathQuizGenerator:
                         valid = False
                         break
                     current_value //= b
+
+                if i == 0 and steps >= 2:
+                    if not (first_result_min <= current_value <= first_result_max):
+                        valid = False
+                        break
+                    display_op_step1 = op.replace("*", "×").replace("/", "÷")
+                    step1_str = f"({step1_val}{display_op_step1}{b}={current_value})"
 
                 # 检查中间步骤结果是否符合范围（主要防止负数）
                 if i < steps - 1:
