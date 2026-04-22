@@ -26,12 +26,27 @@ def convert_docx_to_pdf():
                 pdf_path = os.path.join(current_dir, pdf_filename)
 
                 logger.info(f"正在转换: {filename} -> {pdf_filename}")
+                doc = None
 
-                # 打开文档
-                doc = word.Documents.Open(docx_path)
-                # 保存为 PDF (17 是 Word 中 PDF 的常量值)
-                doc.SaveAs(pdf_path, FileFormat=17)
-                doc.Close()
+                try:
+                    # 打开文档
+                    doc = word.Documents.Open(docx_path)
+                    # 保存为 PDF (17 是 Word 中 PDF 的常量值)
+                    doc.SaveAs(pdf_path, FileFormat=17)
+                    doc.Close()
+                    doc = None
+
+                    if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
+                        os.remove(docx_path)
+                        logger.info(f"已删除中间文件: {filename}")
+                    else:
+                        logger.warning(
+                            f"PDF 未正常生成，保留 DOCX 文件: {filename}"
+                        )
+                except Exception as file_error:
+                    logger.error(f"转换文件失败 {filename}: {file_error}")
+                    if doc is not None:
+                        doc.Close(False)
 
         logger.info("转换任务全部完成。")
     except Exception as e:
