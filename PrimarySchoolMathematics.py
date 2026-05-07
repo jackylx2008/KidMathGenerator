@@ -21,6 +21,30 @@ class MathQuizGenerator:
     A4_HEIGHT_CM = 29.7
     PT_TO_TWIPS = 20
     CM_TO_PT = 28.3465
+    OPERATOR_ALIASES = {
+        "+": "+",
+        "加": "+",
+        "add": "+",
+        "addition": "+",
+        "-": "-",
+        "减": "-",
+        "sub": "-",
+        "subtract": "-",
+        "subtraction": "-",
+        "*": "*",
+        "x": "*",
+        "×": "*",
+        "乘": "*",
+        "mul": "*",
+        "multiply": "*",
+        "multiplication": "*",
+        "/": "/",
+        "÷": "/",
+        "除": "/",
+        "div": "/",
+        "divide": "/",
+        "division": "/",
+    }
 
     def __init__(self, config_path="config.yaml"):
         # 加载配置
@@ -136,6 +160,88 @@ class MathQuizGenerator:
         section.left_margin = Cm(margin_cm)
         section.right_margin = Cm(margin_cm)
 
+    @classmethod
+    def normalize_operator(cls, operator):
+        """把配置中的运算符别名统一成内部符号。"""
+        key = str(operator).strip().lower()
+        return cls.OPERATOR_ALIASES.get(key)
+
+    @classmethod
+    def parse_operator_ratios(cls, ratios):
+        """解析运算符比例配置，返回可用于 random.choices 的权重。"""
+        if not isinstance(ratios, dict):
+            return None
+
+        weights = {}
+        for operator, ratio in ratios.items():
+            normalized_operator = cls.normalize_operator(operator)
+            if normalized_operator is None:
+                continue
+
+            try:
+                weight = float(str(ratio).strip().rstrip("%"))
+            except (TypeError, ValueError):
+                continue
+
+            if weight > 0:
+                weights[normalized_operator] = (
+                    weights.get(normalized_operator, 0) + weight
+                )
+
+        if not weights:
+            return None
+
+        return list(weights.keys()), list(weights.values())
+
+    def choose_operator(self, setting, step_number, fallback_operators):
+        """按配置比例选择运算符；未配置比例时退回旧版等概率选择。"""
+        ratios = setting.get(
+            f"operator_ratios{step_number}", setting.get("operator_ratios")
+        )
+        weighted_operators = self.parse_operator_ratios(ratios)
+        if weighted_operators is not None:
+            operators, weights = weighted_operators
+            return random.choices(operators, weights=weights, k=1)[0]
+
+        operators = [
+            normalized_operator
+            for operator in fallback_operators
+            if (normalized_operator := self.normalize_operator(operator)) is not None
+        ]
+        if not operators:
+            operators = ["+"]
+
+        return random.choice(operators)
+
+    @staticmethod
+    def choose_operand(current_value, operator, operand_min, operand_max, result_min, result_max):
+        """为指定运算符挑一个能满足结果范围的操作数。"""
+        if result_min > result_max:
+            return None
+
+        candidates = []
+        for operand in range(operand_min, operand_max + 1):
+            if operator == "+":
+                result = current_value + operand
+            elif operator == "-":
+                result = current_value - operand
+            elif operator == "*":
+                result = current_value * operand
+            elif operator == "/":
+                if operand == 0 or current_value % operand != 0:
+                    continue
+                result = current_value // operand
+            else:
+                continue
+
+            if result_min <= result <= result_max:
+                candidates.append((operand, result))
+
+        if not candidates:
+            return None
+
+        return random.choice(candidates)
+
     def generate_problem(self):
         """根据配置随机生成一道题目"""
         settings = self.config["quiz"]["settings"]
@@ -173,40 +279,42 @@ class MathQuizGenerator:
             for i in range(steps):
                 # 根据步骤选择对应的符号池
                 if i == 0:
-                    op = random.choice(ops_pool1)
-                    b = random.randint(t2_min, t2_max)
+                    op = self.choose_operator(setting, 1, ops_pool1)
+                    operand_min = t2_min
+                    operand_max = t2_max
                     step1_val = current_value
                 else:
-                    op = random.choice(ops_pool2)
-                    b = random.randint(t3_min, t3_max)
-
-                if op == "+":
-                    current_value += b
-                elif op == "-":
-                    if current_value < b:
-                        valid = False
-                        break
-                    current_value -= b
-                elif op == "*":
-                    current_value *= b
-                elif op == "/":
-                    if b == 0 or current_value % b != 0:
-                        valid = False
-                        break
-                    current_value //= b
+                    op = self.choose_operator(setting, 2, ops_pool2)
+                    operand_min = t3_min
+                    operand_max = t3_max
 
                 if i == 0 and steps >= 2:
-                    if not (first_result_min <= current_value <= first_result_max):
-                        valid = False
-                        break
+                    step_result_min = max(first_result_min, mid_min)
+                    step_result_max = first_result_max
+                elif i < steps - 1:
+                    step_result_min = mid_min
+                    step_result_max = r_max
+                else:
+                    step_result_min = r_min
+                    step_result_max = r_max
+
+                operand_result = self.choose_operand(
+                    current_value,
+                    op,
+                    operand_min,
+                    operand_max,
+                    step_result_min,
+                    step_result_max,
+                )
+                if operand_result is None:
+                    valid = False
+                    break
+
+                b, current_value = operand_result
+
+                if i == 0 and steps >= 2:
                     display_op_step1 = op.replace("*", "×").replace("/", "÷")
                     step1_str = f"({step1_val}{display_op_step1}{b}={current_value})"
-
-                # 检查中间步骤结果是否符合范围（主要防止负数）
-                if i < steps - 1:
-                    if current_value < mid_min:
-                        valid = False
-                        break
 
                 # 转换符号显示
                 display_op = op.replace("*", "×").replace("/", "÷")
