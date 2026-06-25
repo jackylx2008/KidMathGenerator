@@ -1,6 +1,8 @@
 import random
 import yaml
 import os
+import tempfile
+from pathlib import Path
 import logging
 from docx import Document
 from docx.shared import Pt, Cm
@@ -12,6 +14,7 @@ from docx.enum.table import (
 )
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
+from PIL import Image
 from logging_config import setup_logger
 import convert_to_pdf
 
@@ -159,6 +162,149 @@ class MathQuizGenerator:
         section.bottom_margin = Cm(margin_cm)
         section.left_margin = Cm(margin_cm)
         section.right_margin = Cm(margin_cm)
+
+    @staticmethod
+    def find_first_image(image_dir="src"):
+        """查找目录中的第一张可用图片。"""
+        supported_extensions = {".png", ".jpg", ".jpeg", ".bmp", ".gif"}
+        image_path = Path(image_dir)
+        if not image_path.exists() or not image_path.is_dir():
+            return None
+
+        for file_path in sorted(image_path.iterdir()):
+            if (
+                file_path.is_file()
+                and file_path.suffix.lower() in supported_extensions
+            ):
+                return str(file_path)
+
+        return None
+
+    @staticmethod
+    def make_background_transparent(image, tolerance):
+        """按图片左上角背景色把不透明底色处理成透明。"""
+        image = image.convert("RGBA")
+        background = image.getpixel((0, 0))[:3]
+        background_luminance = sum(background) / 3
+        pixels = []
+        pixel_data = (
+            image.get_flattened_data()
+            if hasattr(image, "get_flattened_data")
+            else image.getdata()
+        )
+
+        for red, green, blue, alpha in pixel_data:
+            channels = (red, green, blue)
+            is_near_background = all(
+                abs(channel - bg_channel) <= tolerance
+                for channel, bg_channel in zip(channels, background)
+            )
+            is_neutral_noise = (
+                max(channels) - min(channels) <= 24
+                and abs((red + green + blue) / 3 - background_luminance)
+                <= tolerance * 2
+            )
+            is_background = is_near_background or is_neutral_noise
+            pixels.append(
+                (red, green, blue, 0) if is_background else (red, green, blue, alpha)
+            )
+
+        image.putdata(pixels)
+        return image
+
+    def create_hard_label_variant(
+        self,
+        image,
+        output_dir,
+        page_number,
+        rotation_min,
+        rotation_max,
+    ):
+        """生成随机旋转后的每页图章图片。"""
+        rotation_angle = random.uniform(rotation_min, rotation_max)
+        resampling = getattr(getattr(Image, "Resampling", Image), "BICUBIC")
+        image = image.copy().rotate(
+            rotation_angle,
+            expand=True,
+            resample=resampling,
+            fillcolor=(255, 255, 255, 0),
+        )
+
+        output_path = Path(output_dir) / f"hard_label_page_{page_number + 1}.png"
+        image.save(output_path)
+        return str(output_path), rotation_angle
+
+    @staticmethod
+    def make_picture_float_on_page(run, x_cm, y_cm):
+        """把 inline 图片改成相对页面绝对定位的浮动图片。"""
+        inline = run._r.xpath(".//wp:inline")[0]
+        inline.tag = qn("wp:anchor")
+
+        for name, value in {
+            "distT": "0",
+            "distB": "0",
+            "distL": "0",
+            "distR": "0",
+            "simplePos": "0",
+            "relativeHeight": "251658240",
+            "behindDoc": "0",
+            "locked": "0",
+            "layoutInCell": "1",
+            "allowOverlap": "1",
+        }.items():
+            inline.set(name, value)
+
+        extent = inline.find(qn("wp:extent"))
+
+        simple_pos = OxmlElement("wp:simplePos")
+        simple_pos.set("x", "0")
+        simple_pos.set("y", "0")
+
+        position_h = OxmlElement("wp:positionH")
+        position_h.set("relativeFrom", "page")
+        position_h_offset = OxmlElement("wp:posOffset")
+        position_h_offset.text = str(int(Cm(x_cm)))
+        position_h.append(position_h_offset)
+
+        position_v = OxmlElement("wp:positionV")
+        position_v.set("relativeFrom", "page")
+        position_v_offset = OxmlElement("wp:posOffset")
+        position_v_offset.text = str(int(Cm(y_cm)))
+        position_v.append(position_v_offset)
+
+        inline.insert(0, simple_pos)
+        inline.insert(1, position_h)
+        inline.insert(2, position_v)
+
+        effect_extent = OxmlElement("wp:effectExtent")
+        for side in ("l", "t", "r", "b"):
+            effect_extent.set(side, "0")
+
+        wrap_none = OxmlElement("wp:wrapNone")
+        extent_index = list(inline).index(extent)
+        inline.insert(extent_index + 1, effect_extent)
+        inline.insert(extent_index + 2, wrap_none)
+
+    def add_hard_label(
+        self,
+        paragraph,
+        image_path,
+        image_width_cm,
+        offset_x_cm=0,
+        offset_y_cm=0,
+    ):
+        """把图章作为浮动图片盖到页面指定坐标，不参与正文排版。"""
+        run = paragraph.add_run()
+        run.add_picture(image_path, width=Cm(image_width_cm))
+        self.make_picture_float_on_page(run, offset_x_cm, offset_y_cm)
+
+    @staticmethod
+    def append_filename_suffix(filename, suffix):
+        """在扩展名前追加文件名后缀，避免重复追加。"""
+        path = Path(filename)
+        if path.stem.endswith(suffix):
+            return str(path)
+        return str(path.with_name(f"{path.stem}{suffix}{path.suffix}"))
 
     @classmethod
     def normalize_operator(cls, operator):
@@ -341,6 +487,13 @@ class MathQuizGenerator:
         title = quiz_cfg.get("title", "小学生口算题")
         output_file = quiz_cfg.get("output_file", "小学口算题_v2.docx")
         output_file_answer = quiz_cfg.get("output_file_answer", "小学口算题_答案.docx")
+        hard_label = quiz_cfg.get("hard_label", False)
+        if hard_label:
+            output_file = self.append_filename_suffix(output_file, "_难题")
+            output_file_answer = self.append_filename_suffix(
+                output_file_answer,
+                "_难题",
+            )
 
         self.logger.info(
             f"开始生成 {pages} 页，每页 {count} 道题目，并导出到 {output_file} 及 {output_file_answer}"
@@ -356,116 +509,189 @@ class MathQuizGenerator:
         info_font_size = quiz_cfg.get("info_font_size", 16)
         margin_cm = quiz_cfg.get("margin_cm", 1.0)
         orientation = quiz_cfg.get("orientation", "landscape")
+        hard_label_width_cm = quiz_cfg.get("hard_label_width_cm", 2.2)
+        hard_label_rotation_min = quiz_cfg.get("hard_label_rotation_min", -15)
+        hard_label_rotation_max = quiz_cfg.get("hard_label_rotation_max", 15)
+        hard_label_jitter_x_cm = quiz_cfg.get("hard_label_jitter_x_cm", 0.45)
+        hard_label_jitter_y_cm = quiz_cfg.get("hard_label_jitter_y_cm", 0.3)
+        hard_label_offset_x_cm = quiz_cfg.get("hard_label_offset_x_cm", 0)
+        hard_label_offset_y_cm = quiz_cfg.get("hard_label_offset_y_cm", 0)
+        hard_label_bg_tolerance = quiz_cfg.get("hard_label_bg_tolerance", 45)
+        hard_label_image = self.find_first_image() if hard_label else None
+        hard_label_base_image = None
+        hard_label_temp_dir = None
 
-        for page in range(pages):
-            if page > 0:
-                doc.add_page_break()
-                doc_answer.add_page_break()
+        if hard_label and hard_label_image is None:
+            self.logger.warning("已启用 hard_label，但 src 目录下未找到可用图片。")
 
-            # 设置页面布局和标题
-            for d in [doc, doc_answer]:
-                section = d.sections[-1]
-                self.apply_page_layout(section, orientation, margin_cm)
+        try:
+            if hard_label_image:
+                hard_label_temp_dir = tempfile.TemporaryDirectory(
+                    prefix="kid_math_hard_label_"
+                )
+                hard_label_base_image = self.make_background_transparent(
+                    Image.open(hard_label_image),
+                    hard_label_bg_tolerance,
+                )
 
-                # 添加标题
-                current_title = title if d == doc else f"{title} (答案)"
-                heading = d.add_heading(current_title, 0)
-                heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            for page in range(pages):
+                if page > 0:
+                    doc.add_page_break()
+                    doc_answer.add_page_break()
 
-            # 题目卷专有信息行
-            info_para = doc.add_paragraph()
-            info_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            info_run = info_para.add_run(
-                "姓名：__________ 日期：____月____日 时间：________ 对题：____道"
-            )
-            info_run.font.size = Pt(info_font_size)
-            info_run.font.name = font_name
-            rPr = info_run._element.get_or_add_rPr()
-            rFonts = rPr.get_or_add_rFonts()
-            rFonts.set(qn("w:eastAsia"), font_name)
+                # 设置页面布局和标题
+                heading = None
+                for d in [doc, doc_answer]:
+                    section = d.sections[-1]
+                    self.apply_page_layout(section, orientation, margin_cm)
 
-            rows = (count + columns - 1) // columns
-            table = doc.add_table(rows=rows, cols=columns)
-            table_answer = doc_answer.add_table(rows=rows, cols=columns)
-            self.setup_table_layout(table, doc.sections[-1], columns, is_answer=False)
-            self.setup_table_layout(
-                table_answer, doc_answer.sections[-1], columns, is_answer=True
-            )
+                    # 添加标题
+                    current_title = title if d == doc else f"{title} (答案)"
+                    current_heading = d.add_heading(current_title, 0)
+                    current_heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    if d == doc:
+                        heading = current_heading
 
-            current_page_problems = []
-            current_page_answers = []
-            max_retries_per_prob = 1000
-
-            for _ in range(count):
-                found_new = False
-                for _retry in range(max_retries_per_prob):
-                    prob, ans = self.generate_problem()
-                    if prob not in all_unique_problems:
-                        all_unique_problems.add(prob)
-                        current_page_problems.append(prob)
-                        current_page_answers.append(ans)
-                        found_new = True
-                        break
-
-                if not found_new:
-                    for _retry in range(max_retries_per_prob):
-                        prob, ans = self.generate_problem()
-                        if prob not in set(current_page_problems):
-                            current_page_problems.append(prob)
-                            current_page_answers.append(ans)
-                            all_unique_problems.add(prob)
-                            found_new = True
-                            self.logger.warning(
-                                f"警告：第 {page + 1} 页尝试生成全局唯一题目失败，已改用页内唯一模式。"
-                            )
-                            break
-
-                if not found_new:
-                    self.logger.error(
-                        f"严重警告：第 {page + 1} 页范围极窄，已无法维持页内题目唯一性。"
+                if hard_label_image:
+                    hard_label_variant, rotation_angle = self.create_hard_label_variant(
+                        hard_label_base_image,
+                        hard_label_temp_dir.name,
+                        page,
+                        hard_label_rotation_min,
+                        hard_label_rotation_max,
                     )
-                    prob, ans = self.generate_problem()
-                    current_page_problems.append(prob)
-                    current_page_answers.append(ans)
+                    offset_x_cm = max(
+                        0,
+                        hard_label_offset_x_cm
+                        + random.uniform(
+                            -hard_label_jitter_x_cm,
+                            hard_label_jitter_x_cm,
+                        ),
+                    )
+                    offset_y_cm = max(
+                        0,
+                        hard_label_offset_y_cm
+                        + random.uniform(
+                            -hard_label_jitter_y_cm,
+                            hard_label_jitter_y_cm,
+                        ),
+                    )
+                    self.add_hard_label(
+                        heading,
+                        hard_label_variant,
+                        hard_label_width_cm,
+                        offset_x_cm,
+                        offset_y_cm,
+                    )
+                    self.logger.info(
+                        "第 %s 页难题标签：旋转 %.1f 度，左移 %.2f cm，下移 %.2f cm。",
+                        page + 1,
+                        rotation_angle,
+                        offset_x_cm,
+                        offset_y_cm,
+                    )
 
-            dynamic_answer_font_size = self.calculate_answer_font_size(
-                doc_answer.sections[-1],
-                rows,
-                columns,
-                current_page_answers,
-                answer_font_size,
-                margin_cm,
-            )
-            self.logger.info(
-                f"第 {page + 1} 页答案字号自动调整为 {dynamic_answer_font_size} 磅。"
-            )
-
-            for i in range(len(current_page_problems)):
-                row = i // columns
-                col = i % columns
-
-                # 填充题目
-                cell = table.cell(row, col)
-                self.normalize_paragraph(cell.paragraphs[0])
-                run = cell.paragraphs[0].add_run(current_page_problems[i])
-                run.font.size = Pt(font_size)
-                run.font.name = font_name
-                rPr = run._element.get_or_add_rPr()
+                # 题目卷专有信息行
+                info_para = doc.add_paragraph()
+                info_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                info_run = info_para.add_run(
+                    "姓名：__________ 日期：____月____日 时间：________ 对题：____道"
+                )
+                info_run.font.size = Pt(info_font_size)
+                info_run.font.name = font_name
+                rPr = info_run._element.get_or_add_rPr()
                 rFonts = rPr.get_or_add_rFonts()
                 rFonts.set(qn("w:eastAsia"), font_name)
 
-                # 填充答案
-                cell_a = table_answer.cell(row, col)
-                self.normalize_paragraph(cell_a.paragraphs[0])
-                run_a = cell_a.paragraphs[0].add_run(current_page_answers[i])
-                run_a.font.size = Pt(dynamic_answer_font_size)
-                run_a.font.name = font_name
-                rPr_a = run_a._element.get_or_add_rPr()
-                rFonts_a = rPr_a.get_or_add_rFonts()
-                rFonts_a.set(qn("w:eastAsia"), font_name)
+                rows = (count + columns - 1) // columns
+                table = doc.add_table(rows=rows, cols=columns)
+                table_answer = doc_answer.add_table(rows=rows, cols=columns)
+                self.setup_table_layout(
+                    table, doc.sections[-1], columns, is_answer=False
+                )
+                self.setup_table_layout(
+                    table_answer, doc_answer.sections[-1], columns, is_answer=True
+                )
 
-        doc.save(output_file)
-        doc_answer.save(output_file_answer)
+                current_page_problems = []
+                current_page_answers = []
+                max_retries_per_prob = 1000
+
+                for _ in range(count):
+                    found_new = False
+                    for _retry in range(max_retries_per_prob):
+                        prob, ans = self.generate_problem()
+                        if prob not in all_unique_problems:
+                            all_unique_problems.add(prob)
+                            current_page_problems.append(prob)
+                            current_page_answers.append(ans)
+                            found_new = True
+                            break
+
+                    if not found_new:
+                        for _retry in range(max_retries_per_prob):
+                            prob, ans = self.generate_problem()
+                            if prob not in set(current_page_problems):
+                                current_page_problems.append(prob)
+                                current_page_answers.append(ans)
+                                all_unique_problems.add(prob)
+                                found_new = True
+                                self.logger.warning(
+                                    f"警告：第 {page + 1} 页尝试生成全局唯一题目失败，"
+                                    "已改用页内唯一模式。"
+                                )
+                                break
+
+                    if not found_new:
+                        self.logger.error(
+                            f"严重警告：第 {page + 1} 页范围极窄，已无法维持页内题目唯一性。"
+                        )
+                        prob, ans = self.generate_problem()
+                        current_page_problems.append(prob)
+                        current_page_answers.append(ans)
+
+                dynamic_answer_font_size = self.calculate_answer_font_size(
+                    doc_answer.sections[-1],
+                    rows,
+                    columns,
+                    current_page_answers,
+                    answer_font_size,
+                    margin_cm,
+                )
+                self.logger.info(
+                    f"第 {page + 1} 页答案字号自动调整为 {dynamic_answer_font_size} 磅。"
+                )
+
+                for i in range(len(current_page_problems)):
+                    row = i // columns
+                    col = i % columns
+
+                    # 填充题目
+                    cell = table.cell(row, col)
+                    self.normalize_paragraph(cell.paragraphs[0])
+                    run = cell.paragraphs[0].add_run(current_page_problems[i])
+                    run.font.size = Pt(font_size)
+                    run.font.name = font_name
+                    rPr = run._element.get_or_add_rPr()
+                    rFonts = rPr.get_or_add_rFonts()
+                    rFonts.set(qn("w:eastAsia"), font_name)
+
+                    # 填充答案
+                    cell_a = table_answer.cell(row, col)
+                    self.normalize_paragraph(cell_a.paragraphs[0])
+                    run_a = cell_a.paragraphs[0].add_run(current_page_answers[i])
+                    run_a.font.size = Pt(dynamic_answer_font_size)
+                    run_a.font.name = font_name
+                    rPr_a = run_a._element.get_or_add_rPr()
+                    rFonts_a = rPr_a.get_or_add_rFonts()
+                    rFonts_a.set(qn("w:eastAsia"), font_name)
+
+            doc.save(output_file)
+            doc_answer.save(output_file_answer)
+        finally:
+            if hard_label_temp_dir is not None:
+                hard_label_temp_dir.cleanup()
+
         self.logger.info(f"成功生成文档: {os.path.abspath(output_file)}")
         self.logger.info(f"成功生成答案: {os.path.abspath(output_file_answer)}")
 
