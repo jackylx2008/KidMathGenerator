@@ -2,7 +2,7 @@ app:
   log_level: INFO
   output_dir: "tmp/smoke_output"
   convert_to_pdf: true
-  delete_docx_after_pdf: false
+  delete_docx_after_pdf: true
   random_seed: 42
 
 flows:

@@ -2,7 +2,7 @@ app:
   log_level: INFO
   output_dir: "${OUTPUT_DIR:-output}"
   convert_to_pdf: true
-  delete_docx_after_pdf: false
+  delete_docx_after_pdf: true
   # 设置整数可复现同一批题目；留空则每次随机生成。
   random_seed:
 

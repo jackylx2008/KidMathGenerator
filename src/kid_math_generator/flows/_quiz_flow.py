@@ -14,7 +14,7 @@ from kid_math_generator.modules.pdf_converter import convert_docx_files
 
 @dataclass(frozen=True, slots=True)
 class QuizFlowResult:
-    docx_files: tuple[Path, Path]
+    docx_files: tuple[Path, ...]
     pdf_files: tuple[Path, ...]
 
 
@@ -42,12 +42,14 @@ def run_quiz_flow(
             (pair.question, pair.answer),
             output_dir=context.output_dir,
             delete_source=bool(
-                context.app_config.get("delete_docx_after_pdf", False)
+                context.app_config.get("delete_docx_after_pdf", True)
             ),
         )
         pdf_files = tuple(converted)
 
     return QuizFlowResult(
-        docx_files=(pair.question, pair.answer),
+        docx_files=tuple(
+            path for path in (pair.question, pair.answer) if path.exists()
+        ),
         pdf_files=pdf_files,
     )

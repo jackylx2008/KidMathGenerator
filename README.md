@@ -41,7 +41,7 @@ python multiplication_quiz.py --config-file tests/fixtures/smoke_config.yaml
   - `log_level`：日志级别。
   - `output_dir`：输出根目录，默认 `output`。
   - `convert_to_pdf`：是否调用 Word 转换 PDF。
-  - `delete_docx_after_pdf`：PDF 成功后是否删除 DOCX，默认保留。
+  - `delete_docx_after_pdf`：PDF 成功后是否删除 DOCX，默认删除。
   - `random_seed`：可选随机种子，设置整数后可以复现同一批题。
 - `flows.addition_subtraction`
   - 页数、每页题量、排版、图章和加减法数值范围。
@@ -54,7 +54,9 @@ python multiplication_quiz.py --config-file tests/fixtures/smoke_config.yaml
 
 ## 输出
 
-- `output/`：统一存放加减法与九九乘法的题目卷、答案卷 DOCX 和 PDF。
+- `output/`：统一存放加减法与九九乘法的题目卷、答案卷 PDF。
+
+生成过程中会先创建 DOCX；确认对应 PDF 已成功生成且文件非空后，默认删除该 DOCX。PDF 转换失败时会保留 DOCX，便于恢复和排查。
 - `log/`：按入口脚本命名的滚动日志。
 
 开启加减法 `hard_label` 后，程序读取 `src` 根目录中的第一张图片作为图章，只盖在题目卷上；输出文件名会追加 `_难题`。
