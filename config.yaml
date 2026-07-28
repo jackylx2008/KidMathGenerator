@@ -1,0 +1,59 @@
+app:
+  log_level: INFO
+  output_dir: "${OUTPUT_DIR:-output}"
+  convert_to_pdf: true
+  delete_docx_after_pdf: false
+  # 设置整数可复现同一批题目；留空则每次随机生成。
+  random_seed:
+
+flows:
+  addition_subtraction:
+    pages: 15
+    count: 20
+    columns: 2
+    title: "小学生加减法口算题"
+    output_file: "小学加减法口算题.docx"
+    output_file_answer: "小学加减法口算题_答案.docx"
+    orientation: landscape
+    font_name: "黑体"
+    font_size: 22
+    info_font_size: 16
+    margin_cm: 1.0
+    hard_label: true
+    hard_label_width_cm: 5.8
+    hard_label_offset_x_cm: 1.2
+    hard_label_offset_y_cm: 0.35
+    hard_label_rotation_min: -45
+    hard_label_rotation_max: 45
+    hard_label_jitter_x_cm: 0.15
+    hard_label_jitter_y_cm: 0.08
+    hard_label_bg_tolerance: 45
+    settings:
+      - steps: 1
+        term1_min: 11
+        term1_max: 99
+        term2_min: 11
+        term2_max: 99
+        operators1: ["+", "-"]
+        operator_ratios1:
+          "+": 65
+          "-": 35
+        result_min: 100
+        result_max: 150
+
+  multiplication:
+    # 九九乘法范围；默认两个因数都在 1–6 之间。
+    factor_min: 1
+    factor_max: 6
+    pages: 1
+    count: 20
+    columns: 2
+    title: "1-6 九九乘法口算题"
+    output_file: "1-6九九乘法口算题.docx"
+    output_file_answer: "1-6九九乘法口算题_答案.docx"
+    orientation: landscape
+    font_name: "黑体"
+    font_size: 22
+    info_font_size: 16
+    margin_cm: 1.0
+    hard_label: false

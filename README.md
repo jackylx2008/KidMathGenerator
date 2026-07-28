@@ -1,113 +1,117 @@
 # Kid Math Generator
 
-用于生成小学生口算题 Word 文档，并通过 Microsoft Word 转换为 PDF。配置项集中在 `config.yaml` 中。
+用于生成小学生加减法和九九乘法口算题。程序会分别创建题目卷、答案卷 DOCX，并在 Windows 上调用 Microsoft Word 转换为 PDF。
 
-## 运行方式
+## 运行环境
 
-```bash
+- Python 3.12+
+- Windows 与 Microsoft Word（仅 PDF 转换需要）
+
+安装依赖：
+
+```powershell
+python -m pip install -r requirements.txt
+```
+
+## 运行命令
+
+生成加减法题：
+
+```powershell
+python addition_subtraction_quiz.py
+```
+
+生成九九乘法题：
+
+```powershell
+python multiplication_quiz.py
+```
+
+旧命令仍兼容，会转交给新的加减法入口：
+
+```powershell
 python PrimarySchoolMathematics.py
 ```
 
-脚本会先生成题目卷和答案卷 DOCX，再调用 `convert_to_pdf.py` 转成 PDF。PDF 转换依赖本机已安装 Microsoft Word。
+可以指定其他配置文件：
 
-## 基础配置
-
-主要配置位于 `config.yaml` 的 `quiz` 节：
-
-```yaml
-quiz:
-  pages: 15
-  count: 20
-  columns: 2
-  title: "小学生口算题"
-  output_file: "小学口算题.docx"
-  output_file_answer: "小学口算题_答案.docx"
-  orientation: "landscape"
-  font_name: "黑体"
-  font_size: 22
-  info_font_size: 16
-  margin_cm: 1.0
+```powershell
+python multiplication_quiz.py --config-file tests/fixtures/smoke_config.yaml
 ```
 
-## 难题图章
+## 配置
 
-当 `hard_label: true` 时，会从 `src` 目录中读取第一张图片作为难题图章，只盖在题目卷上，不盖在答案卷上。
+统一配置位于根目录 `config.yaml`：
 
-图章处理方式：
+- `app`
+  - `log_level`：日志级别。
+  - `output_dir`：输出根目录，默认 `output`。
+  - `convert_to_pdf`：是否调用 Word 转换 PDF。
+  - `delete_docx_after_pdf`：PDF 成功后是否删除 DOCX，默认保留。
+  - `random_seed`：可选随机种子，设置整数后可以复现同一批题。
+- `flows.addition_subtraction`
+  - 页数、每页题量、排版、图章和加减法数值范围。
+  - `settings` 支持一步或多步运算、运算符比例及结果范围。
+- `flows.multiplication`
+  - `factor_min` / `factor_max` 控制两个因数的范围。
+  - 默认值为 `1` 和 `6`，因此只生成两个因数均在 1-6 内的乘法题。
 
-- 自动按图片左上角背景色抠透明，去掉底色。
-- 每页生成独立图章图片，随机旋转和轻微位置抖动。
-- 图章作为浮动图片按页面绝对坐标放置，不使用页眉，不参与正文排版，避免挤出多余页面。
-- 输出文件名会自动追加 `_难题`，例如 `小学口算题_难题.pdf`、`小学口算题_答案_难题.pdf`。
+本机差异可写入不入库的 `common.env`，格式参考 `common.env.example`。
 
-推荐配置示例：
+## 输出
 
-```yaml
-quiz:
-  hard_label: true
-  hard_label_width_cm: 5.8
-  hard_label_offset_x_cm: 1.2
-  hard_label_offset_y_cm: 0.35
-  hard_label_rotation_min: -45
-  hard_label_rotation_max: 45
-  hard_label_jitter_x_cm: 0.15
-  hard_label_jitter_y_cm: 0.08
-  hard_label_bg_tolerance: 45
+- `output/docx/`：题目卷和答案卷 DOCX。
+- `output/pdf/`：题目卷和答案卷 PDF。
+- `log/`：按入口脚本命名的滚动日志。
+
+开启加减法 `hard_label` 后，程序读取 `src` 根目录中的第一张图片作为图章，只盖在题目卷上；输出文件名会追加 `_难题`。
+
+## 项目结构
+
+```text
+src/kid_math_generator/
+├── config_loader.py
+├── context.py
+├── modules/
+│   ├── addition_subtraction.py
+│   ├── multiplication.py
+│   ├── document_builder.py
+│   └── pdf_converter.py
+└── flows/
+    ├── addition_subtraction_flow.py
+    ├── multiplication_flow.py
+    └── _quiz_flow.py
 ```
 
-字段说明：
+- `modules/` 提供单一、可复用的题目生成、文档排版和 PDF 转换能力。
+- `flows/` 组织具体场景的执行步骤。
+- 根目录入口脚本只负责配置、日志、上下文和工作流调用。
+- 根目录 `logging_config.py` 统一配置控制台与滚动文件日志。
 
-- `hard_label_width_cm`: 图章宽度，单位厘米。
-- `hard_label_offset_x_cm`: 图章距离页面左侧的基准位置，单位厘米。
-- `hard_label_offset_y_cm`: 图章距离页面顶部的基准位置，单位厘米。
-- `hard_label_rotation_min` / `hard_label_rotation_max`: 每页随机旋转角度范围。
-- `hard_label_jitter_x_cm` / `hard_label_jitter_y_cm`: 每页随机位置抖动范围。
-- `hard_label_bg_tolerance`: 背景色透明处理容差，图章底色残留明显时可适当调大。
+## 测试和 PDF 校验
 
-## 出题配置
+运行单元测试和代码规范检查：
 
-`settings` 控制题目范围、步数、运算符和结果范围：
-
-```yaml
-settings:
-  - steps: 1
-    term1_min: 11
-    term1_max: 99
-    term2_min: 11
-    term2_max: 99
-    operators1: ["+", "-"]
-    operator_ratios1:
-      "+": 65
-      "-": 35
-      "*": 0
-      "/": 0
-    result_min: 1
-    result_max: 150
+```powershell
+python -m unittest discover -s tests -p "test_*.py" -v
+flake8 .
 ```
 
-支持 `+`、`-`、`*`、`/`，显示时乘除会转换为 `×`、`÷`。
+运行可复现的完整烟雾测试，会各生成 2 页、每页 20 题的加减法和乘法题目卷/答案卷：
 
-## 输出文件
+```powershell
+python addition_subtraction_quiz.py --config-file tests/fixtures/smoke_config.yaml
+python multiplication_quiz.py --config-file tests/fixtures/smoke_config.yaml
+python tests/validate_smoke_pdfs.py
+```
 
-普通配置：
+PDF 校验会检查文件数量和页数、题量、加减法答案、乘法答案，以及乘法因数是否都位于 1-6。发布前还应使用 Poppler 将所有 PDF 页面渲染成 PNG，逐页检查裁切、重叠、字体和分页。
 
-- `小学口算题.pdf`
-- `小学口算题_答案.pdf`
+## Git 同步
 
-启用难题图章：
+`COMMON_PROJECT_SKILLS.md`、`common.env`、日志、输出文件和测试临时产物不会提交。代码、README、`config.yaml`、`requirements.txt` 和 `common.env.example` 应正常同步。
 
-- `小学口算题_难题.pdf`
-- `小学口算题_答案_难题.pdf`
-
-`convert_to_pdf.py` 在确认 PDF 生成成功后，会删除中间 DOCX 文件。
-
-## 依赖
-
-Python 依赖包括：
-
-- `python-docx`
-- `PyYAML`
-- `Pillow`
-- `comtypes`
-
-PDF 转换还需要 Windows 环境安装 Microsoft Word。
+```powershell
+git pull --rebase origin main
+git push origin main
+```

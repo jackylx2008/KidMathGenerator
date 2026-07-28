@@ -4,6 +4,9 @@
 *.json
 *.docx
 *.pdf
+!config.yaml
+!tests/fixtures/*.yaml
+!requirements.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -138,6 +141,7 @@ celerybeat.pid
 .env
 *.env
 common.env
+!common.env.example
 .venv
 env/
 venv/
@@ -148,6 +152,7 @@ venv.bak/
 # Local project instructions and runtime outputs
 COMMON_PROJECT_SKILLS.md
 output/
+tmp/
 log/
 logs/
 

@@ -12,10 +12,7 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Optional
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-
-# 动态添加 src 目录到 sys.path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+PROJECT_ROOT = Path(__file__).resolve().parent
 
 
 def get_cloudstation_root() -> str:
@@ -49,32 +46,13 @@ def get_cloudstation_root() -> str:
 def resolve_path_markers(path: str | os.PathLike[str]) -> str:
     """Expand supported path markers in YAML/.env values."""
     raw_path = os.fspath(path)
-    has_cloudstation_marker = any(
-        marker in raw_path
-        for marker in ("${CLOUDSTATION_ROOT}", "{CLOUDSTATION_ROOT}", "%CLOUDSTATION_ROOT%")
-    )
     cloudstation_root = get_cloudstation_root()
-    if _is_cloudstation_relative_root(raw_path):
-        return str(Path(cloudstation_root) / raw_path.lstrip("/\\"))
-
     resolved = (
         raw_path.replace("${CLOUDSTATION_ROOT}", cloudstation_root)
         .replace("{CLOUDSTATION_ROOT}", cloudstation_root)
         .replace("%CLOUDSTATION_ROOT%", cloudstation_root)
     )
-    if has_cloudstation_marker:
-        return str(Path(resolved).expanduser())
-    return os.path.expanduser(resolved)
-
-
-def _is_cloudstation_relative_root(path: str) -> bool:
-    if not path.startswith(("/", "\\")):
-        return False
-    if path.startswith(("//", "\\\\")):
-        return False
-    if Path(path).anchor not in ("/", "\\"):
-        return False
-    return True
+    return str(Path(resolved).expanduser())
 
 
 def setup_logger(
@@ -98,7 +76,8 @@ def setup_logger(
     log_file = resolve_path_markers(log_file)
 
     # 创建日志文件夹
-    os.makedirs(os.path.dirname(log_file), exist_ok=True)
+    log_path = Path(log_file)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
 
     # 配置日志格式
     log_format = "%(asctime)s - %(levelname)s - %(module)s - %(message)s"
@@ -118,7 +97,7 @@ def setup_logger(
     # 文件日志处理器（使用滚动记录，防止单个文件过大）
     # maxBytes=10MB, backupCount=5
     file_handler = RotatingFileHandler(
-        log_file,
+        log_path,
         mode="a",
         maxBytes=10 * 1024 * 1024,
         backupCount=5,

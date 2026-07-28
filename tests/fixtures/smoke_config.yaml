@@ -1,0 +1,57 @@
+app:
+  log_level: INFO
+  output_dir: "tmp/smoke_output"
+  convert_to_pdf: true
+  delete_docx_after_pdf: false
+  random_seed: 42
+
+flows:
+  addition_subtraction:
+    pages: 2
+    count: 20
+    columns: 2
+    title: "加减法口算测试"
+    output_file: "addition-smoke.docx"
+    output_file_answer: "addition-smoke-answer.docx"
+    orientation: landscape
+    font_name: "黑体"
+    font_size: 22
+    info_font_size: 16
+    margin_cm: 1.0
+    hard_label: true
+    hard_label_width_cm: 5.8
+    hard_label_offset_x_cm: 1.2
+    hard_label_offset_y_cm: 0.35
+    hard_label_rotation_min: -30
+    hard_label_rotation_max: 30
+    hard_label_jitter_x_cm: 0.1
+    hard_label_jitter_y_cm: 0.05
+    hard_label_bg_tolerance: 45
+    settings:
+      - steps: 1
+        term1_min: 11
+        term1_max: 99
+        term2_min: 11
+        term2_max: 99
+        operators1: ["+", "-"]
+        operator_ratios1:
+          "+": 65
+          "-": 35
+        result_min: 1
+        result_max: 150
+
+  multiplication:
+    factor_min: 1
+    factor_max: 6
+    pages: 2
+    count: 20
+    columns: 2
+    title: "1-6 九九乘法测试"
+    output_file: "multiplication-smoke.docx"
+    output_file_answer: "multiplication-smoke-answer.docx"
+    orientation: landscape
+    font_name: "黑体"
+    font_size: 22
+    info_font_size: 16
+    margin_cm: 1.0
+    hard_label: false

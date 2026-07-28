@@ -1,59 +1,59 @@
-import os
-import comtypes.client
-import logging
+"""指定 DOCX 文件转换工具
+
+用途：
+  使用本机 Microsoft Word 把一个或多个明确指定的 DOCX 转换为 PDF，
+  不再扫描并误处理当前目录中的所有文档。
+
+必填参数：
+  files   一个或多个 DOCX 文件路径。
+
+可选参数：
+  --output-dir   PDF 输出目录，默认 output/pdf。
+  --delete-source   转换成功后删除源 DOCX。
+
+示例：
+  python convert_to_pdf.py output/docx/sample.docx
+
+输出：
+  PDF 写入 --output-dir 指定目录，日志写入 log。
+"""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parent
+SRC_DIR = PROJECT_ROOT / "src"
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
+
+from kid_math_generator.modules.pdf_converter import convert_docx_files
+from logging_config import get_logger, setup_logger
 
 
-def convert_docx_to_pdf():
-    # 初始化日志
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("files", nargs="+", type=Path, help="待转换的 DOCX")
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=PROJECT_ROOT / "output" / "pdf",
     )
-    logger = logging.getLogger(__name__)
+    parser.add_argument("--delete-source", action="store_true")
+    args = parser.parse_args(argv)
 
-    # 获取当前目录
-    current_dir = os.path.abspath(os.getcwd())
-    logger.info(f"正在扫描目录: {current_dir}")
-
-    # 获取 word 实例
-    word = comtypes.client.CreateObject("Word.Application")
-    word.Visible = False
-
-    try:
-        for filename in os.listdir(current_dir):
-            if filename.endswith(".docx") and not filename.startswith("~$"):
-                docx_path = os.path.join(current_dir, filename)
-                pdf_filename = filename.replace(".docx", ".pdf")
-                pdf_path = os.path.join(current_dir, pdf_filename)
-
-                logger.info(f"正在转换: {filename} -> {pdf_filename}")
-                doc = None
-
-                try:
-                    # 打开文档
-                    doc = word.Documents.Open(docx_path)
-                    # 保存为 PDF (17 是 Word 中 PDF 的常量值)
-                    doc.SaveAs(pdf_path, FileFormat=17)
-                    doc.Close()
-                    doc = None
-
-                    if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
-                        os.remove(docx_path)
-                        logger.info(f"已删除中间文件: {filename}")
-                    else:
-                        logger.warning(
-                            f"PDF 未正常生成，保留 DOCX 文件: {filename}"
-                        )
-                except Exception as file_error:
-                    logger.error(f"转换文件失败 {filename}: {file_error}")
-                    if doc is not None:
-                        doc.Close(False)
-
-        logger.info("转换任务全部完成。")
-    except Exception as e:
-        logger.error(f"转换过程中出现错误: {e}")
-    finally:
-        word.Quit()
+    setup_logger()
+    logger = get_logger(__name__)
+    outputs = convert_docx_files(
+        args.files,
+        output_dir=args.output_dir,
+        delete_source=args.delete_source,
+    )
+    logger.info("已生成 PDF：%s", ", ".join(map(str, outputs)))
+    return 0
 
 
 if __name__ == "__main__":
-    convert_docx_to_pdf()
+    raise SystemExit(main())
