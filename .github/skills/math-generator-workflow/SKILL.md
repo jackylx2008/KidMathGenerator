@@ -9,7 +9,6 @@ description: "**WORKFLOW SKILL** — 从配置调整、题目生成到 Word/PDF 
 
 - 加减法：`addition_subtraction_quiz.py`
 - 九九乘法：`multiplication_quiz.py`
-- 旧版兼容入口：`PrimarySchoolMathematics.py`
 
 统一检查根目录 `config.yaml`：
 

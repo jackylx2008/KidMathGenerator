@@ -27,12 +27,6 @@ python addition_subtraction_quiz.py
 python multiplication_quiz.py
 ```
 
-旧命令仍兼容，会转交给新的加减法入口：
-
-```powershell
-python PrimarySchoolMathematics.py
-```
-
 可以指定其他配置文件：
 
 ```powershell
