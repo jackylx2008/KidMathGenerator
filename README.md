@@ -54,8 +54,7 @@ python multiplication_quiz.py --config-file tests/fixtures/smoke_config.yaml
 
 ## 输出
 
-- `output/docx/`：题目卷和答案卷 DOCX。
-- `output/pdf/`：题目卷和答案卷 PDF。
+- `output/`：统一存放加减法与九九乘法的题目卷、答案卷 DOCX 和 PDF。
 - `log/`：按入口脚本命名的滚动日志。
 
 开启加减法 `hard_label` 后，程序读取 `src` 根目录中的第一张图片作为图章，只盖在题目卷上；输出文件名会追加 `_难题`。

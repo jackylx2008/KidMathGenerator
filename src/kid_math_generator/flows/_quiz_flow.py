@@ -33,14 +33,14 @@ def run_quiz_flow(
     )
     pair = builder.build(
         problem_factory,
-        output_dir=context.output_dir / "docx",
+        output_dir=context.output_dir,
     )
 
     pdf_files: tuple[Path, ...] = ()
     if bool(context.app_config.get("convert_to_pdf", True)):
         converted = convert_docx_files(
             (pair.question, pair.answer),
-            output_dir=context.output_dir / "pdf",
+            output_dir=context.output_dir,
             delete_source=bool(
                 context.app_config.get("delete_docx_after_pdf", False)
             ),

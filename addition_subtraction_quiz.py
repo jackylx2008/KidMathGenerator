@@ -16,7 +16,7 @@
   python addition_subtraction_quiz.py --config-file config.yaml
 
 输出：
-  DOCX 写入 output/docx，PDF 写入 output/pdf，日志写入 log。
+  DOCX 和 PDF 统一写入 output，日志写入 log。
 """
 
 from __future__ import annotations

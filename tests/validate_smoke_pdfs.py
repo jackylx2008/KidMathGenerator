@@ -74,7 +74,7 @@ def main() -> int:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path("tmp/smoke_output/pdf"),
+        default=Path("tmp/smoke_output"),
     )
     args = parser.parse_args()
     validate(args.output_dir)

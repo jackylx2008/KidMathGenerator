@@ -8,11 +8,11 @@
   files   一个或多个 DOCX 文件路径。
 
 可选参数：
-  --output-dir   PDF 输出目录，默认 output/pdf。
+  --output-dir   PDF 输出目录，默认 output。
   --delete-source   转换成功后删除源 DOCX。
 
 示例：
-  python convert_to_pdf.py output/docx/sample.docx
+  python convert_to_pdf.py output/sample.docx
 
 输出：
   PDF 写入 --output-dir 指定目录，日志写入 log。
@@ -39,7 +39,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=PROJECT_ROOT / "output" / "pdf",
+        default=PROJECT_ROOT / "output",
     )
     parser.add_argument("--delete-source", action="store_true")
     args = parser.parse_args(argv)
