@@ -106,6 +106,13 @@ PDF 校验会检查文件数量和页数、题量、加减法答案、乘法答�
 
 `COMMON_PROJECT_SKILLS.md`、`common.env`、日志、输出文件和测试临时产物不会提交。代码、README、`config.yaml`、`requirements.txt` 和 `common.env.example` 应正常同步。
 
+提交信息统一使用以下格式：
+
+```text
+feat: 中文功能描述
+refactor: 中文重构描述
+```
+
 ```powershell
 git pull --rebase origin main
 git push origin main
