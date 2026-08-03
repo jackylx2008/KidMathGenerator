@@ -1,3 +1,6 @@
+# macOS metadata
+.DS_Store
+
 # yaml json txt
 *.yaml
 *.txt
@@ -149,8 +152,7 @@ ENV/
 env.bak/
 venv.bak/
 
-# Local project instructions and runtime outputs
-COMMON_PROJECT_SKILLS.md
+# Local runtime outputs
 output/
 tmp/
 log/

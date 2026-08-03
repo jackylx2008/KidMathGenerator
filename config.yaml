@@ -1,5 +1,5 @@
 app:
-  log_level: INFO
+  log_level: "${LOG_LEVEL:-INFO}"
   output_dir: "${OUTPUT_DIR:-output}"
   convert_to_pdf: true
   delete_docx_after_pdf: true
@@ -45,12 +45,12 @@ flows:
     # 九九乘法范围；默认两个因数都在 1–6 之间。
     factor_min: 1
     factor_max: 6
-    pages: 1
+    pages: 15
     count: 20
     columns: 2
-    title: "1-6 九九乘法口算题"
-    output_file: "1-6九九乘法口算题.docx"
-    output_file_answer: "1-6九九乘法口算题_答案.docx"
+    title: "九九乘法口算题"
+    output_file: "九九乘法口算题.docx"
+    output_file_answer: "九九乘法口算题_答案.docx"
     orientation: landscape
     font_name: "黑体"
     font_size: 22

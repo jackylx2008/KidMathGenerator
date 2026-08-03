@@ -3,15 +3,25 @@
 from __future__ import annotations
 
 import os
+import platform
 import re
 from pathlib import Path
 from typing import Any
 
 import yaml
 
-from logging_config import get_cloudstation_root
-
 _ENV_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}")
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+_CLOUDSTATION_ENV_BY_PLATFORM = {
+    "Windows": "CLOUDSTATION_ROOT_WINDOWS",
+    "Darwin": "CLOUDSTATION_ROOT_MACOS",
+    "Linux": "CLOUDSTATION_ROOT_LINUX",
+}
+_CLOUDSTATION_DEFAULT_BY_PLATFORM = {
+    "Windows": r"D:\CloudStaion",
+    "Darwin": "~/SynologyDrive/",
+    "Linux": "~/CloudStation",
+}
 
 
 def load_config(
@@ -21,9 +31,14 @@ def load_config(
 ) -> dict[str, Any]:
     """读取 YAML 配置，并递归展开其中的环境变量标记。"""
     path = Path(config_path).resolve()
-    local_env_path = Path(env_path).resolve() if env_path else path.with_name("common.env")
+    local_env_path = (
+        Path(env_path).resolve()
+        if env_path
+        else _PROJECT_ROOT / "common.env"
+    )
     load_env_file(local_env_path)
-    os.environ.setdefault("CLOUDSTATION_ROOT", get_cloudstation_root())
+    if not os.getenv("CLOUDSTATION_ROOT"):
+        os.environ["CLOUDSTATION_ROOT"] = get_cloudstation_root()
 
     with path.open("r", encoding="utf-8") as file:
         loaded = yaml.safe_load(file) or {}
@@ -32,6 +47,20 @@ def load_config(
         raise ValueError(f"配置文件顶层必须是映射: {path}")
 
     return _expand_value(loaded)
+
+
+def get_cloudstation_root() -> str:
+    """按显式配置、当前平台配置和平台默认值的顺序解析同步根目录。"""
+    explicit_root = os.getenv("CLOUDSTATION_ROOT")
+    if explicit_root:
+        return str(Path(explicit_root).expanduser())
+
+    system = platform.system()
+    platform_env_name = _CLOUDSTATION_ENV_BY_PLATFORM.get(system)
+    platform_root = os.getenv(platform_env_name) if platform_env_name else None
+    if not platform_root:
+        platform_root = _CLOUDSTATION_DEFAULT_BY_PLATFORM.get(system, "~/CloudStation")
+    return str(Path(platform_root).expanduser())
 
 
 def load_env_file(path: str | Path) -> None:

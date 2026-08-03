@@ -16,7 +16,7 @@
   python addition_subtraction_quiz.py --config-file config.yaml
 
 输出：
-  DOCX 和 PDF 统一写入 output，日志写入 log。
+  DOCX 和 PDF 统一写入 output，日志写入 logs。
 """
 
 from __future__ import annotations
@@ -37,7 +37,10 @@ from logging_config import get_logger, setup_logger
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument(
         "--config-file",
         type=Path,

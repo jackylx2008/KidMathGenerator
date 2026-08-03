@@ -1,7 +1,8 @@
 """指定 DOCX 文件转换工具
 
 用途：
-  使用本机 Microsoft Word 把一个或多个明确指定的 DOCX 转换为 PDF，
+  根据当前系统调用 Microsoft Word，把一个或多个明确指定的 DOCX 转换为 PDF。
+  Windows 使用 comtypes，macOS 使用 docx2pdf，
   不再扫描并误处理当前目录中的所有文档。
 
 必填参数：
@@ -15,7 +16,7 @@
   python convert_to_pdf.py output/sample.docx
 
 输出：
-  PDF 写入 --output-dir 指定目录，日志写入 log。
+  PDF 写入 --output-dir 指定目录，日志写入 logs。
 """
 
 from __future__ import annotations
@@ -34,7 +35,10 @@ from logging_config import get_logger, setup_logger
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("files", nargs="+", type=Path, help="待转换的 DOCX")
     parser.add_argument(
         "--output-dir",

@@ -1,17 +1,25 @@
 # Kid Math Generator
 
-用于生成小学生加减法和九九乘法口算题。程序会分别创建题目卷、答案卷 DOCX，并在 Windows 上调用 Microsoft Word 转换为 PDF。
+用于生成小学生加减法和九九乘法口算题。程序会分别创建题目卷、答案卷 DOCX，并在 Windows 或 macOS 上调用 Microsoft Word 转换为 PDF。
 
 ## 运行环境
 
 - Python 3.12+
-- Windows 与 Microsoft Word（仅 PDF 转换需要）
+- Windows 或 macOS
+- Microsoft Word（仅自动转换 PDF 时需要）
 
 安装依赖：
 
 ```powershell
 python -m pip install -r requirements.txt
 ```
+
+依赖会根据当前系统自动选择 PDF 转换组件：Windows 安装 `comtypes`，
+macOS 安装 `docx2pdf`。macOS 首次转换时需要允许终端或 Python 控制
+Microsoft Word。Linux 暂不支持 Microsoft Word 自动转换，可将
+`app.convert_to_pdf` 设为 `false`，仅生成 DOCX。
+
+macOS 路径已使用 Microsoft Word for Mac 完成 DOCX 到 PDF 的实际转换验证。
 
 ## 运行命令
 
@@ -33,6 +41,12 @@ python multiplication_quiz.py
 python multiplication_quiz.py --config-file tests/fixtures/smoke_config.yaml
 ```
 
+转换一个或多个指定的 DOCX 文件：
+
+```powershell
+python convert_to_pdf.py output/sample.docx --output-dir output
+```
+
 ## 配置
 
 统一配置位于根目录 `config.yaml`：
@@ -50,20 +64,33 @@ python multiplication_quiz.py --config-file tests/fixtures/smoke_config.yaml
   - `factor_min` / `factor_max` 控制两个因数的范围。
   - 默认值为 `1` 和 `6`，因此只生成两个因数均在 1-6 内的乘法题。
 
-本机差异可写入不入库的 `common.env`，格式参考 `common.env.example`。
+本机差异可写入不入库的 `common.env`，格式参考 `common.env.example`。配置值支持
+`${ENV_VAR:-default}` 形式的环境变量覆盖；进程中已有的环境变量优先于
+`common.env`。
+
+跨平台同步路径统一使用 `${CLOUDSTATION_ROOT}`。加载配置时会优先读取显式的
+`CLOUDSTATION_ROOT`，否则根据系统选择
+`CLOUDSTATION_ROOT_WINDOWS`、`CLOUDSTATION_ROOT_MACOS` 或
+`CLOUDSTATION_ROOT_LINUX`，并自动展开 `~`。
 
 ## 输出
 
 - `output/`：统一存放加减法与九九乘法的题目卷、答案卷 PDF。
+- `logs/`：按入口脚本命名的滚动日志；单文件上限 10 MB，保留 5 份备份。
 
 生成过程中会先创建 DOCX；确认对应 PDF 已成功生成且文件非空后，默认删除该 DOCX。PDF 转换失败时会保留 DOCX，便于恢复和排查。
-- `log/`：按入口脚本命名的滚动日志。
 
 开启加减法 `hard_label` 后，程序读取 `src` 根目录中的第一张图片作为图章，只盖在题目卷上；输出文件名会追加 `_难题`。
 
 ## 项目结构
 
 ```text
+addition_subtraction_quiz.py
+multiplication_quiz.py
+convert_to_pdf.py
+logging_config.py
+config.yaml
+common.env.example
 src/kid_math_generator/
 ├── config_loader.py
 ├── context.py
@@ -76,6 +103,9 @@ src/kid_math_generator/
     ├── addition_subtraction_flow.py
     ├── multiplication_flow.py
     └── _quiz_flow.py
+docs/
+tests/
+logs/
 ```
 
 - `modules/` 提供单一、可复用的题目生成、文档排版和 PDF 转换能力。
@@ -104,7 +134,9 @@ PDF 校验会检查文件数量和页数、题量、加减法答案、乘法答�
 
 ## Git 同步
 
-`COMMON_PROJECT_SKILLS.md`、`common.env`、日志、输出文件和测试临时产物不会提交。代码、README、`config.yaml`、`requirements.txt` 和 `common.env.example` 应正常同步。
+`docs/COMMON_PROJECT_SKILLS.md` 属于项目文档，应与代码一同提交。本地
+`common.env`、`logs/`、`output/` 和测试临时产物不提交；代码、README、
+`config.yaml`、`requirements.txt` 和 `common.env.example` 应正常同步。
 
 提交信息统一使用以下格式：
 
