@@ -1,4 +1,4 @@
-"""两个口算场景共享的文档与 PDF 编排步骤。"""
+"""各类练习工作流共享的文档与 PDF 编排步骤。"""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from kid_math_generator.context import AppContext
-from kid_math_generator.modules.document_builder import QuizDocumentBuilder
+from kid_math_generator.modules.document_builder import DocumentPair, QuizDocumentBuilder
 from kid_math_generator.modules.pdf_converter import convert_docx_files
 
 
@@ -35,6 +35,15 @@ def run_quiz_flow(
         problem_factory,
         output_dir=context.output_dir,
     )
+
+    return finish_quiz_flow(context, pair)
+
+
+def finish_quiz_flow(
+    context: AppContext,
+    pair: DocumentPair,
+) -> QuizFlowResult:
+    """复用 DOCX 转 PDF 和结构化结果汇总步骤。"""
 
     pdf_files: tuple[Path, ...] = ()
     if bool(context.app_config.get("convert_to_pdf", True)):

@@ -1,0 +1,43 @@
+app:
+  log_level: INFO
+  output_dir: "tmp/vertical_smoke_output"
+  convert_to_pdf: false
+  delete_docx_after_pdf: false
+  random_seed: 42
+
+flows:
+  vertical_arithmetic:
+    pages: 1
+    count: 6
+    columns: 3
+    title: "竖式计算测试"
+    output_file: "vertical-smoke.docx"
+    output_file_answer: "vertical-smoke-answer.docx"
+    orientation: portrait
+    font_name: "黑体"
+    font_size: 20
+    number_font_size: 11
+    working_font_size: 9
+    info_font_size: 14
+    margin_cm: 1.2
+    digit_cell_width_cm: 0.65
+    digit_row_height_cm: 0.65
+    show_working_in_answer: true
+    hard_label: false
+    settings:
+      - operation: addition
+        weight: 50
+        left_min: 10
+        left_max: 99
+        right_min: 10
+        right_max: 99
+        carry: required
+
+      - operation: subtraction
+        weight: 50
+        left_min: 10
+        left_max: 99
+        right_min: 10
+        right_max: 99
+        borrow: required
+        allow_negative: false

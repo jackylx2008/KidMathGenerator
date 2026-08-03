@@ -21,9 +21,10 @@ from kid_math_generator.modules.multiplication import (
 
 
 class ConfigTests(unittest.TestCase):
-    def test_project_config_contains_two_flows(self) -> None:
+    def test_project_config_contains_all_flows(self) -> None:
         config = load_config(PROJECT_ROOT / "config.yaml")
         self.assertIn("addition_subtraction", config["flows"])
+        self.assertIn("vertical_arithmetic", config["flows"])
         multiplication = config["flows"]["multiplication"]
         self.assertEqual(multiplication["factor_min"], 1)
         self.assertEqual(multiplication["factor_max"], 6)

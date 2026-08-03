@@ -57,3 +57,44 @@ flows:
     info_font_size: 16
     margin_cm: 1.0
     hard_label: false
+
+  vertical_arithmetic:
+    # 第一阶段支持加法进位和减法借位；后续可扩展乘法部分积与除法步骤。
+    pages: 1
+    count: 12
+    columns: 3
+    title: "竖式计算练习"
+    output_file: "竖式计算练习.docx"
+    output_file_answer: "竖式计算练习_答案.docx"
+    orientation: portrait
+    font_name: "黑体"
+    font_size: 20
+    number_font_size: 11
+    working_font_size: 9
+    info_font_size: 14
+    margin_cm: 1.2
+    digit_cell_width_cm: 0.65
+    digit_row_height_cm: 0.65
+    show_working_in_answer: true
+    hard_label: false
+    settings:
+      - operation: addition
+        weight: 50
+        left_min: 10
+        left_max: 99
+        right_min: 10
+        right_max: 99
+        result_min: 20
+        result_max: 198
+        carry: required
+
+      - operation: subtraction
+        weight: 50
+        left_min: 10
+        left_max: 99
+        right_min: 10
+        right_max: 99
+        result_min: 0
+        result_max: 89
+        borrow: required
+        allow_negative: false

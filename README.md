@@ -1,6 +1,6 @@
 # Kid Math Generator
 
-用于生成小学生加减法和九九乘法口算题。程序会分别创建题目卷、答案卷 DOCX，并在 Windows 或 macOS 上调用 Microsoft Word 转换为 PDF。
+用于生成小学生加减法口算题、九九乘法口算题和竖式计算练习。程序会分别创建题目卷、答案卷 DOCX，并在 Windows 或 macOS 上调用 Microsoft Word 转换为 PDF。
 
 ## 运行环境
 
@@ -35,10 +35,22 @@ python addition_subtraction_quiz.py
 python multiplication_quiz.py
 ```
 
+生成加减法竖式计算练习：
+
+```powershell
+python vertical_arithmetic_quiz.py
+```
+
 可以指定其他配置文件：
 
 ```powershell
 python multiplication_quiz.py --config-file tests/fixtures/smoke_config.yaml
+```
+
+生成一页竖式 DOCX 烟雾测试文件（不调用 Word 转 PDF）：
+
+```powershell
+python vertical_arithmetic_quiz.py --config-file tests/fixtures/vertical_smoke_config.yaml
 ```
 
 转换一个或多个指定的 DOCX 文件：
@@ -63,6 +75,17 @@ python convert_to_pdf.py output/sample.docx --output-dir output
 - `flows.multiplication`
   - `factor_min` / `factor_max` 控制两个因数的范围。
   - 默认值为 `1` 和 `6`，因此只生成两个因数均在 1-6 内的乘法题。
+- `flows.vertical_arithmetic`
+  - `pages`、`count`、`columns` 控制页数、每页题量和列数。
+  - `settings` 中通过 `operation` 选择 `addition` 或 `subtraction`。
+  - `weight` 控制不同规则在混合练习中的比例。
+  - `carry` / `borrow` 支持 `none`、`required`、`any`。
+  - `carry_count_min`、`carry_count_max`、`borrow_count_min`、
+    `borrow_count_max` 可进一步控制进位或借位次数。
+  - `show_working_in_answer` 控制答案卷是否显示进位和借位标记。
+
+竖式第一阶段支持加法进位和减法借位。数据模型已经为乘法部分积、除法商、
+余数和分步计算预留结构，后续会沿用同一入口扩展。
 
 本机差异可写入不入库的 `common.env`，格式参考 `common.env.example`。配置值支持
 `${ENV_VAR:-default}` 形式的环境变量覆盖；进程中已有的环境变量优先于
@@ -75,7 +98,7 @@ python convert_to_pdf.py output/sample.docx --output-dir output
 
 ## 输出
 
-- `output/`：统一存放加减法与九九乘法的题目卷、答案卷 PDF。
+- `output/`：统一存放口算和竖式练习的题目卷、答案卷 DOCX/PDF。
 - `logs/`：按入口脚本命名的滚动日志；单文件上限 10 MB，保留 5 份备份。
 
 生成过程中会先创建 DOCX；确认对应 PDF 已成功生成且文件非空后，默认删除该 DOCX。PDF 转换失败时会保留 DOCX，便于恢复和排查。
@@ -87,6 +110,7 @@ python convert_to_pdf.py output/sample.docx --output-dir output
 ```text
 addition_subtraction_quiz.py
 multiplication_quiz.py
+vertical_arithmetic_quiz.py
 convert_to_pdf.py
 logging_config.py
 config.yaml
@@ -98,10 +122,13 @@ src/kid_math_generator/
 │   ├── addition_subtraction.py
 │   ├── multiplication.py
 │   ├── document_builder.py
+│   ├── vertical_arithmetic.py
+│   ├── vertical_document_builder.py
 │   └── pdf_converter.py
 └── flows/
     ├── addition_subtraction_flow.py
     ├── multiplication_flow.py
+    ├── vertical_arithmetic_flow.py
     └── _quiz_flow.py
 docs/
 tests/

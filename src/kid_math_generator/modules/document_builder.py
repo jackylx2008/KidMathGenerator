@@ -38,6 +38,7 @@ class QuizDocumentBuilder:
     A4_HEIGHT_CM = 29.7
     PT_TO_TWIPS = 20
     CM_TO_PT = 28.3465
+    EMU_PER_TWIP = 635
 
     def __init__(
         self,
@@ -249,21 +250,15 @@ class QuizDocumentBuilder:
         is_answer: bool = False,
     ) -> None:
         width = section.page_width - section.left_margin - section.right_margin
-        column_width = width // columns
+        column_widths = [width // columns] * columns
+        column_widths[-1] += width - sum(column_widths)
         table.alignment = WD_TABLE_ALIGNMENT.CENTER
         table.autofit = False
+        self._set_fixed_table_geometry(table, column_widths)
 
-        table_properties = table._tbl.tblPr
-        table_width = table_properties.first_child_found_in("w:tblW")
-        if table_width is None:
-            table_width = OxmlElement("w:tblW")
-            table_properties.append(table_width)
-        table_width.set(qn("w:w"), str(int(width)))
-        table_width.set(qn("w:type"), "dxa")
-
-        for column in table.columns:
+        for column_index, column in enumerate(table.columns):
             for cell in column.cells:
-                cell.width = column_width
+                cell.width = column_widths[column_index]
                 cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
                 self._set_cell_margins(
                     cell,
@@ -272,15 +267,47 @@ class QuizDocumentBuilder:
                     bottom=20 if is_answer else 40,
                     end=40 if is_answer else 60,
                 )
-                cell_width = cell._tc.get_or_add_tcPr().first_child_found_in("w:tcW")
-                if cell_width is not None:
-                    cell_width.set(qn("w:w"), str(int(column_width)))
-                    cell_width.set(qn("w:type"), "dxa")
                 paragraph = cell.paragraphs[0]
                 paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
                 paragraph.paragraph_format.space_before = Pt(0)
                 paragraph.paragraph_format.space_after = Pt(0)
                 paragraph.paragraph_format.line_spacing = 1
+
+    @classmethod
+    def _set_fixed_table_geometry(cls, table, column_widths: list[int]) -> None:
+        """以 Word 使用的 DXA 单位设置表格、网格列和单元格宽度。"""
+        widths_twips = [
+            max(1, round(width / cls.EMU_PER_TWIP))
+            for width in column_widths
+        ]
+        total_twips = sum(widths_twips)
+        properties = table._tbl.tblPr
+
+        table_width = properties.first_child_found_in("w:tblW")
+        if table_width is None:
+            table_width = OxmlElement("w:tblW")
+            properties.append(table_width)
+        table_width.set(qn("w:w"), str(total_twips))
+        table_width.set(qn("w:type"), "dxa")
+
+        layout = properties.first_child_found_in("w:tblLayout")
+        if layout is None:
+            layout = OxmlElement("w:tblLayout")
+            properties.append(layout)
+        layout.set(qn("w:type"), "fixed")
+
+        grid_columns = table._tbl.tblGrid.findall(qn("w:gridCol"))
+        for grid_column, width_twips in zip(grid_columns, widths_twips):
+            grid_column.set(qn("w:w"), str(width_twips))
+
+        for row in table.rows:
+            for cell, width_twips in zip(row.cells, widths_twips):
+                cell_width = cell._tc.get_or_add_tcPr().first_child_found_in("w:tcW")
+                if cell_width is None:
+                    cell_width = OxmlElement("w:tcW")
+                    cell._tc.get_or_add_tcPr().append(cell_width)
+                cell_width.set(qn("w:w"), str(width_twips))
+                cell_width.set(qn("w:type"), "dxa")
 
     def _calculate_answer_font_size(
         self,
