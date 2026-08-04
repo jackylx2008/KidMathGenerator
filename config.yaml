@@ -44,8 +44,8 @@ flows:
   multiplication:
     # 九九乘法范围；默认两个因数都在 1–6 之间。
     factor_min: 1
-    factor_max: 6
-    pages: 15
+    factor_max: 9
+    pages: 10
     count: 20
     columns: 2
     title: "九九乘法口算题"
@@ -60,7 +60,7 @@ flows:
 
   vertical_arithmetic:
     # 第一阶段支持加法进位和减法借位；后续可扩展乘法部分积与除法步骤。
-    pages: 1
+    pages: 10
     count: 12
     columns: 3
     title: "竖式计算练习"
