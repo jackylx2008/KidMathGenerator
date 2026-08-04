@@ -77,19 +77,24 @@ class QuizDocumentBuilder:
         question_doc = Document()
         answer_doc = Document()
         global_problems: set[str] = set()
-        label_image = self._find_first_image() if hard_label else None
-        prepared_label = None
+        label_enabled = bool(self.config.get("label_enabled", hard_label))
+        label_images = self._find_images() if label_enabled else ()
+        prepared_labels: list[Image.Image] = []
         label_temp_dir: tempfile.TemporaryDirectory[str] | None = None
 
         try:
-            if label_image is not None:
+            if label_images:
                 label_temp_dir = tempfile.TemporaryDirectory(prefix="kid_math_label_")
-                prepared_label = self._make_background_transparent(
-                    Image.open(label_image),
-                    int(self.config.get("hard_label_bg_tolerance", 45)),
-                )
-            elif hard_label:
-                LOGGER.warning("已启用 hard_label，但 %s 中未找到图片", self.asset_dir)
+                for label_image in label_images:
+                    with Image.open(label_image) as source_image:
+                        prepared_labels.append(
+                            self._make_background_transparent(
+                                source_image,
+                                int(self.config.get("hard_label_bg_tolerance", 45)),
+                            )
+                        )
+            elif label_enabled:
+                LOGGER.warning("已启用盖章，但 %s 中未找到图片", self.asset_dir)
 
             pages = max(1, int(self.config.get("pages", 1)))
             count = max(1, int(self.config.get("count", 20)))
@@ -111,10 +116,10 @@ class QuizDocumentBuilder:
                     include_info=False,
                 )
 
-                if prepared_label is not None and label_temp_dir is not None:
+                if prepared_labels and label_temp_dir is not None:
                     self._add_random_label(
                         question_heading,
-                        prepared_label,
+                        self.rng.choice(prepared_labels),
                         Path(label_temp_dir.name),
                         page_number,
                     )
@@ -355,16 +360,18 @@ class QuizDocumentBuilder:
         section.right_margin = margin
 
     def _find_first_image(self) -> Path | None:
+        images = self._find_images()
+        return images[0] if images else None
+
+    def _find_images(self) -> tuple[Path, ...]:
+        """返回素材目录下可用于盖章的全部图片。"""
         if not self.asset_dir.is_dir():
-            return None
+            return ()
         supported = {".png", ".jpg", ".jpeg", ".bmp", ".gif"}
-        return next(
-            (
-                path
-                for path in sorted(self.asset_dir.iterdir())
-                if path.is_file() and path.suffix.lower() in supported
-            ),
-            None,
+        return tuple(
+            path
+            for path in sorted(self.asset_dir.iterdir())
+            if path.is_file() and path.suffix.lower() in supported
         )
 
     def _add_random_label(
@@ -377,11 +384,22 @@ class QuizDocumentBuilder:
         rotation_min = float(self.config.get("hard_label_rotation_min", -15))
         rotation_max = float(self.config.get("hard_label_rotation_max", 15))
         angle = self.rng.uniform(rotation_min, rotation_max)
-        resampling = getattr(getattr(Image, "Resampling", Image), "BICUBIC")
-        rotated = image.copy().rotate(
+        resampling_group = getattr(Image, "Resampling", Image)
+        maximum_width = max(
+            1,
+            int(self.config.get("hard_label_max_width_px", 600)),
+        )
+        prepared = image.copy()
+        if prepared.width > maximum_width:
+            height = max(1, round(prepared.height * maximum_width / prepared.width))
+            prepared = prepared.resize(
+                (maximum_width, height),
+                resample=getattr(resampling_group, "LANCZOS"),
+            )
+        rotated = prepared.rotate(
             angle,
             expand=True,
-            resample=resampling,
+            resample=getattr(resampling_group, "BICUBIC"),
             fillcolor=(255, 255, 255, 0),
         )
         image_path = temp_dir / f"hard_label_page_{page_number + 1}.png"
@@ -416,8 +434,7 @@ class QuizDocumentBuilder:
         tolerance: int,
     ) -> Image.Image:
         rgba = image.convert("RGBA")
-        background = rgba.getpixel((0, 0))[:3]
-        luminance = sum(background) / 3
+        neutral_tolerance = min(max(tolerance, 0), 24)
         pixels = []
         pixel_data = (
             rgba.get_flattened_data()
@@ -426,17 +443,10 @@ class QuizDocumentBuilder:
         )
         for red, green, blue, alpha in pixel_data:
             channels = (red, green, blue)
-            near_background = all(
-                abs(channel - bg) <= tolerance
-                for channel, bg in zip(channels, background)
-            )
-            neutral_noise = (
-                max(channels) - min(channels) <= 24
-                and abs(sum(channels) / 3 - luminance) <= tolerance * 2
-            )
+            neutral_noise = max(channels) - min(channels) <= neutral_tolerance
             pixels.append(
                 (red, green, blue, 0)
-                if near_background or neutral_noise
+                if neutral_noise
                 else (red, green, blue, alpha)
             )
         rgba.putdata(pixels)

@@ -56,7 +56,17 @@ flows:
     font_size: 22
     info_font_size: 16
     margin_cm: 1.0
+    label_enabled: true
     hard_label: false
+    hard_label_width_cm: 4.2
+    hard_label_max_width_px: 600
+    hard_label_offset_x_cm: 0.7
+    hard_label_offset_y_cm: 0.3
+    hard_label_rotation_min: -12
+    hard_label_rotation_max: 12
+    hard_label_jitter_x_cm: 0.15
+    hard_label_jitter_y_cm: 0.1
+    hard_label_bg_tolerance: 45
 
   vertical_arithmetic:
     # 第一阶段支持加法进位和减法借位；后续可扩展乘法部分积与除法步骤。

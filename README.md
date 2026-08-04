@@ -75,6 +75,8 @@ python convert_to_pdf.py output/sample.docx --output-dir output
 - `flows.multiplication`
   - `factor_min` / `factor_max` 控制两个因数的范围。
   - 默认值为 `1` 和 `9`，因此生成完整的九九乘法题。
+  - `label_enabled` 启用题目卷盖章；每页从 `src` 下的图片随机选择一张，
+    经过透明化、压缩和小角度旋转后放置在页面左上角，答案卷不盖章。
 - `flows.vertical_arithmetic`
   - `pages`、`count`、`columns` 控制页数、每页题量和列数。
   - `settings` 中通过 `operation` 选择 `addition` 或 `subtraction`。
