@@ -13,7 +13,7 @@ flows:
     title: "竖式计算测试"
     output_file: "vertical-smoke.docx"
     output_file_answer: "vertical-smoke-answer.docx"
-    orientation: portrait
+    orientation: landscape
     font_name: "黑体"
     font_size: 20
     number_font_size: 11

@@ -12,6 +12,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from docx import Document
+from docx.enum.section import WD_ORIENT
 
 from kid_math_generator.config_loader import load_config
 from kid_math_generator.modules.document_builder import QuizDocumentBuilder
@@ -28,6 +29,8 @@ class ConfigTests(unittest.TestCase):
         multiplication = config["flows"]["multiplication"]
         self.assertEqual(multiplication["factor_min"], 1)
         self.assertEqual(multiplication["factor_max"], 6)
+        for flow in config["flows"].values():
+            self.assertEqual(flow.get("orientation", "landscape"), "landscape")
 
 
 class DocumentBuilderTests(unittest.TestCase):
@@ -39,7 +42,6 @@ class DocumentBuilderTests(unittest.TestCase):
             "title": "乘法测试",
             "output_file": "questions.docx",
             "output_file_answer": "answers.docx",
-            "orientation": "landscape",
             "font_name": "黑体",
             "font_size": 18,
             "hard_label": False,
@@ -62,6 +64,11 @@ class DocumentBuilderTests(unittest.TestCase):
 
             question_doc = Document(result.question)
             answer_doc = Document(result.answer)
+            for document in (question_doc, answer_doc):
+                section = document.sections[0]
+                self.assertEqual(section.orientation, WD_ORIENT.LANDSCAPE)
+                self.assertAlmostEqual(section.page_width.cm, 29.7, places=1)
+                self.assertAlmostEqual(section.page_height.cm, 21.0, places=1)
             question_text = "\n".join(
                 cell.text
                 for table in question_doc.tables

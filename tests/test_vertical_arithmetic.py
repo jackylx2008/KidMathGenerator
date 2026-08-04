@@ -13,6 +13,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from docx import Document
+from docx.enum.section import WD_ORIENT
 from docx.oxml.ns import qn
 
 from kid_math_generator.context import AppContext
@@ -134,7 +135,6 @@ class VerticalArithmeticDocumentTests(unittest.TestCase):
                 "title": "竖式测试",
                 "output_file": "vertical.docx",
                 "output_file_answer": "vertical-answer.docx",
-                "orientation": "portrait",
                 "font_name": "黑体",
                 "font_size": 18,
                 "show_working_in_answer": True,
@@ -151,12 +151,17 @@ class VerticalArithmeticDocumentTests(unittest.TestCase):
 
             self.assertEqual(len(question_doc.tables), 1)
             self.assertEqual(len(answer_doc.tables), 1)
+            for document in (question_doc, answer_doc):
+                section = document.sections[0]
+                self.assertEqual(section.orientation, WD_ORIENT.LANDSCAPE)
+                self.assertAlmostEqual(section.page_width.cm, 29.7, places=1)
+                self.assertAlmostEqual(section.page_height.cm, 21.0, places=1)
             outer_width = question_doc.tables[0]._tbl.tblPr.first_child_found_in(
                 "w:tblW"
             )
             self.assertEqual(outer_width.get(qn("w:type")), "dxa")
-            self.assertGreater(int(outer_width.get(qn("w:w"))), 9000)
-            self.assertLess(int(outer_width.get(qn("w:w"))), 12000)
+            self.assertGreater(int(outer_width.get(qn("w:w"))), 15000)
+            self.assertLess(int(outer_width.get(qn("w:w"))), 16000)
             question_cells = question_doc.tables[0].rows[0].cells
             answer_cells = answer_doc.tables[0].rows[0].cells
             question_verticals = [cell.tables[0] for cell in question_cells]
@@ -213,7 +218,6 @@ class VerticalArithmeticFlowTests(unittest.TestCase):
                         "title": "竖式工作流测试",
                         "output_file": "questions.docx",
                         "output_file_answer": "answers.docx",
-                        "orientation": "portrait",
                         "hard_label": False,
                         "settings": [
                             {

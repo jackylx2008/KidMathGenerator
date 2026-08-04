@@ -66,7 +66,7 @@ flows:
     title: "竖式计算练习"
     output_file: "竖式计算练习.docx"
     output_file_answer: "竖式计算练习_答案.docx"
-    orientation: portrait
+    orientation: landscape
     font_name: "黑体"
     font_size: 20
     number_font_size: 11

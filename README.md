@@ -84,6 +84,8 @@ python convert_to_pdf.py output/sample.docx --output-dir output
     `borrow_count_max` 可进一步控制进位或借位次数。
   - `show_working_in_answer` 控制答案卷是否显示进位和借位标记。
 
+所有题目卷和答案卷默认使用 A4 横向页面，竖式计算也遵循这一规则。新增生成流程时应复用通用文档生成器的页面设置；只有明确配置 `orientation: portrait` 时才改为纵向。
+
 竖式第一阶段支持加法进位和减法借位。数据模型已经为乘法部分积、除法商、
 余数和分步计算预留结构，后续会沿用同一入口扩展。
 
