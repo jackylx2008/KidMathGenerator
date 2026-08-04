@@ -74,7 +74,7 @@ python convert_to_pdf.py output/sample.docx --output-dir output
   - `settings` 支持一步或多步运算、运算符比例及结果范围。
 - `flows.multiplication`
   - `factor_min` / `factor_max` 控制两个因数的范围。
-  - 默认值为 `1` 和 `6`，因此只生成两个因数均在 1-6 内的乘法题。
+  - 默认值为 `1` 和 `9`，因此生成完整的九九乘法题。
 - `flows.vertical_arithmetic`
   - `pages`、`count`、`columns` 控制页数、每页题量和列数。
   - `settings` 中通过 `operation` 选择 `addition` 或 `subtraction`。
@@ -83,6 +83,8 @@ python convert_to_pdf.py output/sample.docx --output-dir output
   - `carry_count_min`、`carry_count_max`、`borrow_count_min`、
     `borrow_count_max` 可进一步控制进位或借位次数。
   - `show_working_in_answer` 控制答案卷是否显示进位和借位标记。
+  - `operator_font_name` / `operator_font_size` 统一控制加减运算符的字体和字号。
+  - 运算符始终紧贴两个操作数中位数较多者的最左侧，不受结果位数影响。
 
 所有题目卷和答案卷默认使用 A4 横向页面，竖式计算也遵循这一规则。新增生成流程时应复用通用文档生成器的页面设置；只有明确配置 `orientation: portrait` 时才改为纵向。
 

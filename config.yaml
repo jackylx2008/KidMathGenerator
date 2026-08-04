@@ -42,7 +42,7 @@ flows:
         result_max: 150
 
   multiplication:
-    # 九九乘法范围；默认两个因数都在 1–6 之间。
+    # 九九乘法范围；默认两个因数都在 1–9 之间。
     factor_min: 1
     factor_max: 9
     pages: 10
@@ -69,6 +69,8 @@ flows:
     orientation: landscape
     font_name: "黑体"
     font_size: 20
+    operator_font_name: "Arial"
+    operator_font_size: 20
     number_font_size: 11
     working_font_size: 9
     info_font_size: 14

@@ -16,6 +16,8 @@ flows:
     orientation: landscape
     font_name: "黑体"
     font_size: 20
+    operator_font_name: "Arial"
+    operator_font_size: 20
     number_font_size: 11
     working_font_size: 9
     info_font_size: 14

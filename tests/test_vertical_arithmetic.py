@@ -208,6 +208,79 @@ class VerticalArithmeticDocumentTests(unittest.TestCase):
             )
             self.assertIsNone(paragraph_borders)
 
+    def test_operator_stays_next_to_widest_operand_with_matching_style(self) -> None:
+        problems = iter(
+            [
+                VerticalArithmeticProblem(
+                    operation="addition",
+                    left=47,
+                    right=58,
+                    result=105,
+                    working=AdditionWorking((1, 1, None)),
+                ),
+                VerticalArithmeticProblem(
+                    operation="subtraction",
+                    left=152,
+                    right=38,
+                    result=114,
+                    working=SubtractionWorking((False, False, True)),
+                ),
+            ]
+        )
+        builder = VerticalArithmeticDocumentBuilder(
+            {
+                "pages": 1,
+                "count": 2,
+                "columns": 1,
+                "title": "运算符定位测试",
+                "output_file": "operators.docx",
+                "output_file_answer": "operators-answer.docx",
+                "font_name": "黑体",
+                "font_size": 18,
+                "show_working_in_answer": True,
+                "hard_label": False,
+            },
+            asset_dir=PROJECT_ROOT / "src",
+            rng=random.Random(5),
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pair = builder.build(lambda: next(problems), output_dir=temp_dir)
+            document = Document(pair.question)
+            outer_table = document.tables[0]
+            addition_table = outer_table.cell(0, 0).tables[0]
+            subtraction_table = outer_table.cell(1, 0).tables[0]
+
+            addition_operator = addition_table.cell(2, 2)
+            subtraction_operator = subtraction_table.cell(2, 1)
+            self.assertEqual(addition_operator.text.strip(), "+")
+            self.assertEqual(subtraction_operator.text.strip(), "−")
+
+            for operator_cell in (addition_operator, subtraction_operator):
+                operator_run = operator_cell.paragraphs[0].runs[0]
+                self.assertEqual(operator_run.font.name, "Arial")
+                self.assertEqual(operator_run.font.size.pt, 18.0)
+
+            addition_leading_cell = addition_table.cell(2, 1)
+            self.assertEqual(addition_leading_cell.text, "")
+            self.assertIsNone(
+                addition_leading_cell
+                ._tc.get_or_add_tcPr()
+                .first_child_found_in("w:tcBorders")
+            )
+
+            for table, operator_column in (
+                (addition_table, 2),
+                (subtraction_table, 1),
+            ):
+                border = (
+                    table.cell(2, operator_column)
+                    ._tc.get_or_add_tcPr()
+                    .first_child_found_in("w:tcBorders")
+                    .find(qn("w:bottom"))
+                )
+                self.assertEqual(border.get(qn("w:val")), "single")
+
     @staticmethod
     def _row_text(table, row_index: int) -> str:
         return "".join(cell.text.strip() for cell in table.rows[row_index].cells)

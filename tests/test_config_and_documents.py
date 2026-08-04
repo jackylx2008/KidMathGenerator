@@ -28,7 +28,7 @@ class ConfigTests(unittest.TestCase):
         self.assertIn("vertical_arithmetic", config["flows"])
         multiplication = config["flows"]["multiplication"]
         self.assertEqual(multiplication["factor_min"], 1)
-        self.assertEqual(multiplication["factor_max"], 6)
+        self.assertEqual(multiplication["factor_max"], 9)
         for flow in config["flows"].values():
             self.assertEqual(flow.get("orientation", "landscape"), "landscape")
 

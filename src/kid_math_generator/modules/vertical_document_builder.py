@@ -255,6 +255,7 @@ class VerticalArithmeticDocumentBuilder(QuizDocumentBuilder):
             len(str(problem.right)),
             len(str(problem.result)),
         )
+        operand_width = max(len(str(problem.left)), len(str(problem.right)))
         digit_start = 2
         table = outer_cell.add_table(rows=4, cols=width + 3)
         table.alignment = WD_TABLE_ALIGNMENT.CENTER
@@ -315,8 +316,10 @@ class VerticalArithmeticDocumentBuilder(QuizDocumentBuilder):
             width,
             digit_start,
             operator=problem.symbol,
+            operator_column=digit_start + width - operand_width - 1,
         )
-        for cell in table.rows[2].cells[1 : digit_start + width]:
+        operator_column = digit_start + width - operand_width - 1
+        for cell in table.rows[2].cells[operator_column : digit_start + width]:
             self._set_bottom_border(cell)
         if show_answer:
             self._write_number_row(table, 3, problem.result, width, digit_start)
@@ -351,24 +354,40 @@ class VerticalArithmeticDocumentBuilder(QuizDocumentBuilder):
         digit_start: int,
         *,
         operator: str = "",
+        operator_column: int | None = None,
     ) -> None:
-        self._write_cell_text(table.cell(row_index, digit_start - 1), operator)
+        if operator:
+            column = digit_start - 1 if operator_column is None else operator_column
+            self._write_cell_text(
+                table.cell(row_index, column),
+                operator,
+                operator=True,
+            )
         padded = str(value).rjust(width)
         for index, character in enumerate(padded, start=digit_start):
             self._write_cell_text(table.cell(row_index, index), character.strip())
 
-    def _write_cell_text(self, cell, text: str, *, working: bool = False) -> None:
+    def _write_cell_text(
+        self,
+        cell,
+        text: str,
+        *,
+        working: bool = False,
+        operator: bool = False,
+    ) -> None:
         paragraph = cell.paragraphs[0]
         run = paragraph.add_run(text)
+        font_size = int(self.config.get("font_size", 20))
+        font_name = str(self.config.get("font_name", "黑体"))
+        if operator:
+            font_name = str(self.config.get("operator_font_name", "Arial"))
+            font_size = int(self.config.get("operator_font_size", font_size))
+        elif working:
+            font_size = int(self.config.get("working_font_size", 9))
         self._set_run_font(
             run,
-            str(self.config.get("font_name", "黑体")),
-            int(
-                self.config.get(
-                    "working_font_size" if working else "font_size",
-                    9 if working else 20,
-                )
-            ),
+            font_name,
+            font_size,
         )
 
     def _ensure_blank_row_height(self, table, row_index: int) -> None:
