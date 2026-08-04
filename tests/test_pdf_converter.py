@@ -12,7 +12,13 @@ from unittest.mock import patch
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from kid_math_generator.modules.pdf_converter import convert_docx_files
+from pypdf import PdfReader, PdfWriter
+from pypdf.generic import DecodedStreamObject
+
+from kid_math_generator.modules.pdf_converter import (
+    convert_docx_files,
+    remove_blank_pdf_pages,
+)
 
 
 class PdfConverterTests(unittest.TestCase):
@@ -38,6 +44,9 @@ class PdfConverterTests(unittest.TestCase):
                     return_value="Darwin",
                 ),
                 patch.dict(sys.modules, {"docx2pdf": fake_docx2pdf}),
+                patch(
+                    "kid_math_generator.modules.pdf_converter.remove_blank_pdf_pages"
+                ) as remove_blank_pages,
             ):
                 generated = convert_docx_files(
                     [source],
@@ -50,6 +59,7 @@ class PdfConverterTests(unittest.TestCase):
             self.assertEqual(calls, [(str(source.resolve()), str(target))])
             self.assertTrue(target.is_file())
             self.assertFalse(source.exists())
+            remove_blank_pages.assert_called_once_with(target)
 
     def test_windows_uses_comtypes_word_automation(self) -> None:
         class FakeDocument:
@@ -101,6 +111,9 @@ class PdfConverterTests(unittest.TestCase):
                     sys.modules,
                     {"comtypes": fake_comtypes, "comtypes.client": fake_client},
                 ),
+                patch(
+                    "kid_math_generator.modules.pdf_converter.remove_blank_pdf_pages"
+                ) as remove_blank_pages,
             ):
                 generated = convert_docx_files([source], output_dir=output_dir)
 
@@ -110,6 +123,44 @@ class PdfConverterTests(unittest.TestCase):
             self.assertEqual(word.Documents.document.file_format, 17)
             self.assertTrue(word.Documents.document.closed)
             self.assertTrue(word.quit_called)
+            remove_blank_pages.assert_called_once_with(target)
+
+    def test_removes_only_pages_without_visible_content(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "pages.pdf"
+            writer = PdfWriter()
+            writer.add_blank_page(width=200, height=100)
+            visible_page = writer.add_blank_page(width=200, height=100)
+            content = DecodedStreamObject()
+            content.set_data(b"10 10 80 40 re S")
+            visible_page.replace_contents(content)
+            whitespace_page = writer.add_blank_page(width=200, height=100)
+            whitespace = DecodedStreamObject()
+            whitespace.set_data(b"BT [( )] TJ ET")
+            whitespace_page.replace_contents(whitespace)
+            with path.open("wb") as output:
+                writer.write(output)
+
+            removed = remove_blank_pdf_pages(path)
+
+            self.assertEqual(removed, 2)
+            reader = PdfReader(path)
+            self.assertEqual(len(reader.pages), 1)
+            operations = reader.pages[0].get_contents().operations
+            self.assertIn(b"S", [operator for _operands, operator in operations])
+
+    def test_does_not_delete_an_entirely_blank_pdf(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "blank.pdf"
+            writer = PdfWriter()
+            writer.add_blank_page(width=200, height=100)
+            with path.open("wb") as output:
+                writer.write(output)
+
+            removed = remove_blank_pdf_pages(path)
+
+            self.assertEqual(removed, 0)
+            self.assertEqual(len(PdfReader(path).pages), 1)
 
     def test_macos_reports_docx2pdf_failure_without_deleting_source(self) -> None:
         fake_docx2pdf = types.ModuleType("docx2pdf")
