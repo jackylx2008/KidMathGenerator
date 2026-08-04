@@ -127,6 +127,8 @@ class VerticalArithmeticDocumentBuilder(QuizDocumentBuilder):
                     problems,
                     columns,
                 )
+                self._add_compact_table_tail(question_doc)
+                self._add_compact_table_tail(answer_doc)
 
             question_doc.save(paths.question)
             answer_doc.save(paths.answer)
@@ -135,6 +137,19 @@ class VerticalArithmeticDocumentBuilder(QuizDocumentBuilder):
                 label_temp_dir.cleanup()
 
         return paths
+
+    @classmethod
+    def _add_compact_table_tail(cls, document: Document) -> None:
+        """压缩表格后的文档结束段落，避免 Word 将其推到空白页。"""
+        cls._compact_paragraph(document.add_paragraph())
+
+    @staticmethod
+    def _compact_paragraph(paragraph) -> None:
+        """将 Word 强制保留的空段落压缩为最小高度。"""
+        paragraph.paragraph_format.space_before = Pt(0)
+        paragraph.paragraph_format.space_after = Pt(0)
+        paragraph.paragraph_format.line_spacing = Pt(1)
+        paragraph.add_run().font.size = Pt(1)
 
     def _generate_page(
         self,
@@ -307,6 +322,7 @@ class VerticalArithmeticDocumentBuilder(QuizDocumentBuilder):
             self._write_number_row(table, 3, problem.result, width, digit_start)
         else:
             self._ensure_blank_row_height(table, 3)
+        self._compact_paragraph(outer_cell.paragraphs[-1])
 
     def _write_working_row(
         self,

@@ -156,6 +156,14 @@ class VerticalArithmeticDocumentTests(unittest.TestCase):
                 self.assertEqual(section.orientation, WD_ORIENT.LANDSCAPE)
                 self.assertAlmostEqual(section.page_width.cm, 29.7, places=1)
                 self.assertAlmostEqual(section.page_height.cm, 21.0, places=1)
+                table_tail = document.paragraphs[-1]
+                self.assertEqual(table_tail.text, "")
+                self.assertEqual(table_tail.paragraph_format.line_spacing.pt, 1.0)
+                self.assertEqual(table_tail.paragraph_format.space_before.pt, 0.0)
+                self.assertEqual(table_tail.paragraph_format.space_after.pt, 0.0)
+            info_paragraph = question_doc.paragraphs[1]
+            self.assertEqual(info_paragraph.paragraph_format.space_before.pt, 0.0)
+            self.assertEqual(info_paragraph.paragraph_format.space_after.pt, 0.0)
             outer_width = question_doc.tables[0]._tbl.tblPr.first_child_found_in(
                 "w:tblW"
             )
@@ -166,6 +174,10 @@ class VerticalArithmeticDocumentTests(unittest.TestCase):
             answer_cells = answer_doc.tables[0].rows[0].cells
             question_verticals = [cell.tables[0] for cell in question_cells]
             answer_verticals = [cell.tables[0] for cell in answer_cells]
+            for cell in (*question_cells, *answer_cells):
+                cell_tail = cell.paragraphs[-1]
+                self.assertEqual(cell_tail.text, "")
+                self.assertEqual(cell_tail.paragraph_format.line_spacing.pt, 1.0)
 
             self.assertEqual(self._row_text(question_verticals[0], 1), "47")
             self.assertEqual(self._row_text(question_verticals[0], 2), "+28")

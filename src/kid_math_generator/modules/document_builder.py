@@ -156,6 +156,8 @@ class QuizDocumentBuilder:
         if include_info:
             paragraph = document.add_paragraph()
             paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            paragraph.paragraph_format.space_before = Pt(0)
+            paragraph.paragraph_format.space_after = Pt(0)
             run = paragraph.add_run(
                 "姓名：__________ 日期：____月____日 时间：________ 对题：____道"
             )
