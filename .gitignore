@@ -1,5 +1,8 @@
-# macOS metadata
+# Operating system metadata
 .DS_Store
+._*
+Thumbs.db
+Desktop.ini
 
 # yaml json txt
 *.yaml
@@ -152,7 +155,8 @@ ENV/
 env.bak/
 venv.bak/
 
-# Local runtime outputs
+# Local project instructions and runtime outputs
+COMMON_PROJECT_SKILLS.md
 output/
 tmp/
 log/
