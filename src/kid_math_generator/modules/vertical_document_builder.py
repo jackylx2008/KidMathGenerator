@@ -303,7 +303,6 @@ class VerticalArithmeticDocumentBuilder(QuizDocumentBuilder):
         )
         for cell in table.rows[2].cells[1 : digit_start + width]:
             self._set_bottom_border(cell)
-            self._set_paragraph_bottom_border(cell.paragraphs[0])
         if show_answer:
             self._write_number_row(table, 3, problem.result, width, digit_start)
         else:
@@ -386,21 +385,5 @@ class VerticalArithmeticDocumentBuilder(QuizDocumentBuilder):
             bottom = OxmlElement("w:bottom")
             borders.append(bottom)
         bottom.set(qn("w:val"), "single")
-        bottom.set(qn("w:sz"), "12")
-        bottom.set(qn("w:color"), "000000")
-
-    @staticmethod
-    def _set_paragraph_bottom_border(paragraph) -> None:
-        properties = paragraph._p.get_or_add_pPr()
-        borders = properties.find(qn("w:pBdr"))
-        if borders is None:
-            borders = OxmlElement("w:pBdr")
-            properties.append(borders)
-        bottom = borders.find(qn("w:bottom"))
-        if bottom is None:
-            bottom = OxmlElement("w:bottom")
-            borders.append(bottom)
-        bottom.set(qn("w:val"), "single")
-        bottom.set(qn("w:sz"), "12")
-        bottom.set(qn("w:space"), "1")
+        bottom.set(qn("w:sz"), "8")
         bottom.set(qn("w:color"), "000000")

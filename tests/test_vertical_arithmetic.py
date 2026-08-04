@@ -186,15 +186,15 @@ class VerticalArithmeticDocumentTests(unittest.TestCase):
             )
             self.assertIsNotNone(bottom_border)
             self.assertEqual(bottom_border.get(qn("w:val")), "single")
-            paragraph_border = (
+            self.assertEqual(bottom_border.get(qn("w:sz")), "8")
+            paragraph_borders = (
                 question_verticals[0]
                 .cell(2, 2)
                 .paragraphs[0]
                 ._p.get_or_add_pPr()
                 .find(qn("w:pBdr"))
-                .find(qn("w:bottom"))
             )
-            self.assertEqual(paragraph_border.get(qn("w:val")), "single")
+            self.assertIsNone(paragraph_borders)
 
     @staticmethod
     def _row_text(table, row_index: int) -> str:
