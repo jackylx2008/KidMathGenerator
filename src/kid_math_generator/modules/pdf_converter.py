@@ -7,7 +7,6 @@ import platform
 import tempfile
 from collections.abc import Iterable
 from pathlib import Path
-from typing import Any
 
 from pypdf import PdfReader, PdfWriter
 
@@ -29,7 +28,6 @@ PDF_PAINT_OPERATORS = {
     b"sh",
     b"INLINE IMAGE",
 }
-PDF_TEXT_OPERATORS = {b"Tj", b"TJ", b"'", b'"'}
 
 
 def convert_docx_files(
@@ -174,19 +172,7 @@ def _is_blank_page(page) -> bool:
     contents = page.get_contents()
     if contents is None:
         return True
-    for operands, operator in contents.operations:
+    for _operands, operator in contents.operations:
         if operator in PDF_PAINT_OPERATORS:
             return False
-        if operator in PDF_TEXT_OPERATORS and _contains_visible_text(operands):
-            return False
     return True
-
-
-def _contains_visible_text(value: Any) -> bool:
-    if isinstance(value, str):
-        return bool(value.strip())
-    if isinstance(value, bytes):
-        return bool(value.strip())
-    if isinstance(value, (list, tuple)):
-        return any(_contains_visible_text(item) for item in value)
-    return False

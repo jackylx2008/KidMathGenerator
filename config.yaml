@@ -88,7 +88,17 @@ flows:
     digit_cell_width_cm: 0.65
     digit_row_height_cm: 0.65
     show_working_in_answer: true
+    label_enabled: true
     hard_label: false
+    hard_label_width_cm: 4.2
+    hard_label_max_width_px: 600
+    hard_label_offset_x_cm: 0.7
+    hard_label_offset_y_cm: 0.3
+    hard_label_rotation_min: -12
+    hard_label_rotation_max: 12
+    hard_label_jitter_x_cm: 0.15
+    hard_label_jitter_y_cm: 0.1
+    hard_label_bg_tolerance: 45
     settings:
       - operation: addition
         weight: 50

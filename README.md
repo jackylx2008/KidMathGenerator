@@ -87,6 +87,9 @@ python convert_to_pdf.py output/sample.docx --output-dir output
   - `show_working_in_answer` 控制答案卷是否显示进位和借位标记。
   - `operator_font_name` / `operator_font_size` 统一控制加减运算符的字体和字号。
   - 运算符始终紧贴两个操作数中位数较多者的最左侧，不受结果位数影响。
+  - `label_enabled` 启用题目卷盖章；每页从 `src` 下的图片随机选择一张，
+    经过透明化和小角度旋转后放置在页面左上角，答案卷不盖章。
+  - `hard_label_max_width_px` 限制嵌入图章的像素宽度，避免多页 PDF 体积过大。
 
 所有题目卷和答案卷默认使用 A4 横向页面，竖式计算也遵循这一规则。新增生成流程时应复用通用文档生成器的页面设置；只有明确配置 `orientation: portrait` 时才改为纵向。
 

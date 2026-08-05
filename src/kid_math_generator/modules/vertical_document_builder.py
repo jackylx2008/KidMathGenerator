@@ -72,19 +72,24 @@ class VerticalArithmeticDocumentBuilder(QuizDocumentBuilder):
         question_doc = Document()
         answer_doc = Document()
         global_problems: set[tuple[str, int, int]] = set()
-        label_image = self._find_first_image() if hard_label else None
-        prepared_label = None
+        label_enabled = bool(self.config.get("label_enabled", hard_label))
+        label_images = self._find_images() if label_enabled else ()
+        prepared_labels: list[Image.Image] = []
         label_temp_dir: tempfile.TemporaryDirectory[str] | None = None
 
         try:
-            if label_image is not None:
+            if label_images:
                 label_temp_dir = tempfile.TemporaryDirectory(prefix="kid_math_label_")
-                prepared_label = self._make_background_transparent(
-                    Image.open(label_image),
-                    int(self.config.get("hard_label_bg_tolerance", 45)),
-                )
-            elif hard_label:
-                LOGGER.warning("已启用 hard_label，但 %s 中未找到图片", self.asset_dir)
+                for label_image in label_images:
+                    with Image.open(label_image) as source_image:
+                        prepared_labels.append(
+                            self._make_background_transparent(
+                                source_image,
+                                int(self.config.get("hard_label_bg_tolerance", 45)),
+                            )
+                        )
+            elif label_enabled:
+                LOGGER.warning("已启用盖章，但 %s 中未找到图片", self.asset_dir)
 
             pages = max(1, int(self.config.get("pages", 1)))
             count = max(1, int(self.config.get("count", 12)))
@@ -107,10 +112,10 @@ class VerticalArithmeticDocumentBuilder(QuizDocumentBuilder):
                     include_info=False,
                 )
 
-                if prepared_label is not None and label_temp_dir is not None:
+                if prepared_labels and label_temp_dir is not None:
                     self._add_random_label(
                         question_heading,
-                        prepared_label,
+                        self.rng.choice(prepared_labels),
                         Path(label_temp_dir.name),
                         page_number,
                     )

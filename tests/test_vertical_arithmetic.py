@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import io
 import random
 import logging
 import sys
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -15,6 +17,8 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 from docx import Document
 from docx.enum.section import WD_ORIENT
 from docx.oxml.ns import qn
+from docx.shared import Cm
+from PIL import Image
 
 from kid_math_generator.context import AppContext
 from kid_math_generator.flows.vertical_arithmetic_flow import run
@@ -108,6 +112,109 @@ class VerticalArithmeticGeneratorTests(unittest.TestCase):
 
 
 class VerticalArithmeticDocumentTests(unittest.TestCase):
+    def test_randomly_stamps_question_pages_at_top_left(self) -> None:
+        problems = iter(
+            [
+                VerticalArithmeticProblem(
+                    operation="addition",
+                    left=47,
+                    right=28,
+                    result=75,
+                    working=AdditionWorking((1, None)),
+                ),
+                VerticalArithmeticProblem(
+                    operation="subtraction",
+                    left=52,
+                    right=38,
+                    result=14,
+                    working=SubtractionWorking((False, True)),
+                ),
+            ]
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            directory = Path(temp_dir)
+            asset_dir = directory / "assets"
+            asset_dir.mkdir()
+            Image.new("RGB", (800, 400), (220, 80, 100)).save(asset_dir / "a.png")
+            Image.new("RGB", (800, 400), (80, 120, 220)).save(asset_dir / "b.png")
+            builder = VerticalArithmeticDocumentBuilder(
+                {
+                    "pages": 2,
+                    "count": 1,
+                    "columns": 1,
+                    "title": "盖章测试",
+                    "output_file": "stamped.docx",
+                    "output_file_answer": "stamped-answer.docx",
+                    "label_enabled": True,
+                    "hard_label": False,
+                    "hard_label_width_cm": 4.2,
+                    "hard_label_offset_x_cm": 0.7,
+                    "hard_label_offset_y_cm": 0.3,
+                    "hard_label_rotation_min": 0,
+                    "hard_label_rotation_max": 0,
+                    "hard_label_jitter_x_cm": 0,
+                    "hard_label_jitter_y_cm": 0,
+                },
+                asset_dir=asset_dir,
+                rng=random.Random(2),
+            )
+
+            pair = builder.build(lambda: next(problems), output_dir=directory)
+
+            self.assertEqual(pair.question.name, "stamped.docx")
+            self.assertEqual(pair.answer.name, "stamped-answer.docx")
+            question_doc = Document(pair.question)
+            answer_doc = Document(pair.answer)
+            anchors = question_doc.element.body.xpath(".//wp:anchor")
+            self.assertEqual(len(anchors), 2)
+            self.assertEqual(len(answer_doc.element.body.xpath(".//wp:anchor")), 0)
+            for anchor in anchors:
+                horizontal = anchor.find(qn("wp:positionH"))
+                vertical = anchor.find(qn("wp:positionV"))
+                self.assertEqual(
+                    int(horizontal.find(qn("wp:posOffset")).text),
+                    int(Cm(0.7)),
+                )
+                self.assertEqual(
+                    int(vertical.find(qn("wp:posOffset")).text),
+                    int(Cm(0.3)),
+                )
+
+            with zipfile.ZipFile(pair.question) as package:
+                media = [
+                    name for name in package.namelist() if name.startswith("word/media/")
+                ]
+                media_sizes = [
+                    Image.open(io.BytesIO(package.read(name))).size for name in media
+                ]
+            with zipfile.ZipFile(pair.answer) as package:
+                answer_media = [
+                    name for name in package.namelist() if name.startswith("word/media/")
+                ]
+            self.assertEqual(len(media), 2)
+            self.assertEqual(media_sizes, [(600, 300), (600, 300)])
+            self.assertEqual(answer_media, [])
+
+    def test_stamp_background_cleanup_preserves_colored_artwork(self) -> None:
+        image = Image.new("RGBA", (3, 1))
+        image.putdata(
+            [
+                (0, 0, 0, 255),
+                (255, 255, 255, 255),
+                (220, 80, 100, 255),
+            ]
+        )
+
+        cleaned = VerticalArithmeticDocumentBuilder._make_background_transparent(
+            image,
+            45,
+        )
+
+        self.assertEqual(cleaned.getpixel((0, 0))[3], 0)
+        self.assertEqual(cleaned.getpixel((1, 0))[3], 0)
+        self.assertEqual(cleaned.getpixel((2, 0))[3], 255)
+
     def test_builds_digit_aligned_question_and_answer_documents(self) -> None:
         problems = iter(
             [

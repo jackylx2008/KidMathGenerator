@@ -16,6 +16,7 @@ from pypdf import PdfReader, PdfWriter
 from pypdf.generic import DecodedStreamObject
 
 from kid_math_generator.modules.pdf_converter import (
+    _is_blank_page,
     convert_docx_files,
     remove_blank_pdf_pages,
 )
@@ -161,6 +162,25 @@ class PdfConverterTests(unittest.TestCase):
 
             self.assertEqual(removed, 0)
             self.assertEqual(len(PdfReader(path).pages), 1)
+
+    def test_treats_unmapped_word_text_operators_as_blank(self) -> None:
+        class FakeContents:
+            operations = [(["!"], b"Tj"), (["!"], b"Tj")]
+
+        class FakePage:
+            @staticmethod
+            def extract_text() -> str:
+                return ""
+
+            @staticmethod
+            def get(name: str):
+                return None if name == "/Annots" else None
+
+            @staticmethod
+            def get_contents() -> FakeContents:
+                return FakeContents()
+
+        self.assertTrue(_is_blank_page(FakePage()))
 
     def test_macos_reports_docx2pdf_failure_without_deleting_source(self) -> None:
         fake_docx2pdf = types.ModuleType("docx2pdf")
